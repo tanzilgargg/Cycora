@@ -1,5 +1,3 @@
-# Copilot Instructions – Cycora Project
-
 ## Project Overview
 
 Cycora is an interactive prototype built using Twine that explores circular economy systems through decision-making gameplay.
