@@ -1,2 +1,2 @@
 # Cycora
-A Twine-based interactive prototype exploring circular economy concepts through UX design and decision-driven gameplay.
+Cycora is an interactive UX and game design project that explores circular economy systems through decision-making experiences. The project allows users to experiment with how everyday waste materials can be transformed into valuable resources.
