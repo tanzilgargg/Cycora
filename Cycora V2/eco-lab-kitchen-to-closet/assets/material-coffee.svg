@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Coffee grounds">
+  <rect x="14" y="22" width="44" height="44" rx="6" fill="#f5ebe0" stroke="#c4a574" stroke-width="2"/>
+  <ellipse cx="36" cy="44" rx="22" ry="18" fill="#4a3728"/>
+  <ellipse cx="36" cy="42" rx="18" ry="14" fill="#6b4838"/>
+  <path d="M58 36 Q68 36 68 44 Q68 52 58 52" fill="none" stroke="#c4a574" stroke-width="3"/>
+  <path d="M28 18 L32 22 L40 22 L44 18" fill="none" stroke="#8b7355" stroke-width="3" stroke-linecap="round"/>
+</svg>

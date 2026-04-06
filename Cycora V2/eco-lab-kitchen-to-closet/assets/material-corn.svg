@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Corn husks">
+  <path d="M12 58 L24 22 L52 18 L68 54 L40 70 Z" fill="#e8c547" stroke="#b89426" stroke-width="2"/>
+  <ellipse cx="42" cy="38" rx="14" ry="28" fill="#f5e6a8" stroke="#d4b84a" stroke-width="1"/>
+  <path d="M38 22 L38 54 M44 24 L44 52 M32 28 L32 50" stroke="#c9a83a" stroke-width="2" opacity="0.7"/>
+  <path d="M20 56 Q8 48 12 38" fill="none" stroke="#6b8f71" stroke-width="4" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cycora: Kitchen Chaos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="title-bar">
+      <h1>Cycora: Kitchen Chaos</h1>
+      <p class="tagline">You type orders and prep. Then you sort what’s left so it doesn’t just get tossed.</p>
+    </header>
+
+    <div id="game-viewport" class="game-viewport" role="application" aria-label="Cycora Kitchen Chaos game">
+      <!-- Menu overlay -->
+      <div id="screen-menu" class="screen screen-menu">
+        <div class="menu-card">
+          <h2>Start your shift</h2>
+          <p class="menu-blurb">Each thing you do is its own word. Hit Space to read the little story bits. When it’s time to sort leftovers, you pick — just type the bin name you mean.</p>
+          <button type="button" class="btn-play" id="btn-start-game">Play</button>
+          <label class="accessibility-toggle">
+            <input type="checkbox" id="opt-large-prompts" />
+            <span>Larger prompt text</span>
+          </label>
+          <label class="accessibility-toggle">
+            <input type="checkbox" id="opt-high-contrast" />
+            <span>High-contrast prompts</span>
+          </label>
+          <div class="menu-sister-game" role="navigation" aria-label="Related Cycora game">
+            <a href="eco-lab-kitchen-to-closet/index.html" class="sister-game-link">Eco Lab: Kitchen → Closet</a>
+            <p class="sister-game-desc">Same typing idea: after the kitchen, run the lab where scraps turn into fabric stuff.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main game -->
+      <div id="screen-game" class="screen screen-game hidden">
+        <div class="hud" id="hud">
+          <div class="hud-block">
+            <span class="hud-label">Time</span>
+            <span class="hud-value" id="hud-timer">—</span>
+          </div>
+          <div class="hud-block">
+            <span class="hud-label">Profit</span>
+            <span class="hud-value" id="hud-profit">$0</span>
+          </div>
+          <div class="hud-block">
+            <span class="hud-label">Impact</span>
+            <span class="hud-value" id="hud-impact">0</span>
+          </div>
+          <div class="hud-block">
+            <span class="hud-label">Meals</span>
+            <span class="hud-value" id="hud-meals">0</span>
+          </div>
+          <div class="hud-block">
+            <span class="hud-label" id="hud-redirect-label">Redirected</span>
+            <span class="hud-value" id="hud-waste">0</span>
+          </div>
+          <div class="hud-block combo-block">
+            <span class="hud-label">Streak</span>
+            <span class="hud-value" id="hud-combo">—</span>
+          </div>
+        </div>
+
+        <div class="scene">
+          <div class="scene-atmosphere" aria-hidden="true"></div>
+          <div class="chef-avatar" id="chef-avatar">
+            <img class="chef-sprite" src="assets/PlayerChef.png" alt="Chef" width="120" height="120" data-asset="PlayerChef.png" />
+          </div>
+          <div class="kitchen-panel">
+            <div class="panel-label">Kitchen</div>
+            <div class="kitchen-scene" aria-hidden="true">
+              <div class="kitchen-floor"></div>
+              <div class="sprite-interactive sprite-prop kitchen-prop-utensils">
+                <button type="button" class="sprite-hit" aria-label="Utensils rack — click for feedback; type when a station glows"></button>
+                <div class="sprite-fx-wrap">
+                  <img class="sprite-img" src="assets/Utensils.png" alt="" data-asset="Utensils.png" />
+                </div>
+              </div>
+
+              <div class="sprite-interactive station-fridge" data-station="fridge" id="station-fridge">
+                <button type="button" class="sprite-hit" aria-label="Fridge — type the word when this glows"></button>
+                <div class="sprite-fx-wrap">
+                  <img class="sprite-img" src="assets/Fridge.png" alt="" data-asset="Fridge.png" />
+                </div>
+                <span class="sprite-label">Fridge</span>
+                <div class="prompt-anchor" id="prompt-fridge"></div>
+              </div>
+              <div class="sprite-interactive station-pantry" data-station="pantry" id="station-pantry">
+                <button type="button" class="sprite-hit" aria-label="Pantry"></button>
+                <div class="sprite-fx-wrap">
+                  <img class="sprite-img" src="assets/Pantry.png" alt="" data-asset="Pantry.png" />
+                </div>
+                <span class="sprite-label">Pantry</span>
+                <div class="prompt-anchor" id="prompt-pantry"></div>
+              </div>
+              <div class="sprite-interactive station-chop" data-station="chop" id="station-chop">
+                <button type="button" class="sprite-hit" aria-label="Chopping station"></button>
+                <div class="sprite-fx-wrap">
+                  <img class="sprite-img" src="assets/ChoppingStation.png" alt="" data-asset="ChoppingStation.png" />
+                </div>
+                <span class="sprite-label">Chop</span>
+                <div class="prompt-anchor" id="prompt-chop"></div>
+              </div>
+              <div class="sprite-interactive station-stove" data-station="stove" id="station-stove">
+                <button type="button" class="sprite-hit" aria-label="Stove"></button>
+                <div class="sprite-fx-wrap">
+                  <img class="sprite-img" src="assets/Stove.png" alt="" data-asset="Stove.png" />
+                </div>
+                <span class="sprite-label">Stove</span>
+                <div class="prompt-anchor" id="prompt-stove"></div>
+              </div>
+              <div class="sprite-interactive station-sink" data-station="sink" id="station-sink">
+                <button type="button" class="sprite-hit" aria-label="Sink"></button>
+                <div class="sprite-fx-wrap">
+                  <img class="sprite-img" src="assets/Sink.png" alt="" data-asset="Sink.png" />
+                </div>
+                <span class="sprite-label">Sink</span>
+                <div class="prompt-anchor" id="prompt-sink"></div>
+              </div>
+              <div class="sprite-interactive station-plate" data-station="plate" id="station-plate">
+                <button type="button" class="sprite-hit" aria-label="Plating counter"></button>
+                <div class="sprite-fx-wrap">
+                  <img class="sprite-img" src="assets/PlatingCounter.png" alt="" data-asset="PlatingCounter.png" />
+                </div>
+                <span class="sprite-label">Plating</span>
+                <div class="prompt-anchor" id="prompt-plate"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dining-panel">
+            <div class="panel-label">Dining room</div>
+            <div class="dining-decor">
+              <div class="menu-board">Today: soup · sandwich · salad · pasta · bowls · more</div>
+              <div class="dining-glow" aria-hidden="true"></div>
+            </div>
+            <div class="entrance" id="entrance"></div>
+            <div class="dining-seating">
+              <div class="tables-row" id="tables-container"></div>
+            </div>
+            <!-- Logical anchor for “serve” typing step (prompt chip only — no pass-through prop) -->
+            <div id="station-serve" class="serve-step-anchor" data-station="serve" aria-hidden="true">
+              <div class="prompt-anchor" id="prompt-serve"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="waste-dock recovery-dock hidden" id="waste-dock">
+          <div class="recovery-header">
+            <div class="panel-label waste-title" id="recovery-dock-title">Recovery channels</div>
+            <p class="recovery-network-tag">Cycora loop · stuff stays useful instead of vanishing</p>
+          </div>
+          <p class="waste-hint" id="waste-hint">Read the card, then type where you’d send it.</p>
+          <div class="leftover-slot" id="leftover-slot"></div>
+          <details class="recovery-legend">
+            <summary>What the four bins mean (quick)</summary>
+            <div class="recovery-legend-body" id="recovery-legend-body"></div>
+          </details>
+          <div class="bins-row bins-row-four recovery-channels-row">
+            <div class="sprite-interactive channel-bin bin bin-recovery channel-donation" data-bin="donation" id="bin-donation">
+              <button type="button" class="sprite-hit" aria-label="Donation bin — type donation"></button>
+              <div class="sprite-fx-wrap bin-sprite-wrap">
+                <img class="sprite-img" src="assets/Yellow.png" alt="" data-asset="Yellow.png" />
+              </div>
+              <span class="sprite-label channel-name">Donation</span>
+              <span class="sprite-sub channel-role">Transformation</span>
+              <div class="prompt-anchor" id="prompt-donation"></div>
+            </div>
+            <div class="sprite-interactive channel-bin bin bin-recovery channel-compost" data-bin="compost" id="bin-compost">
+              <button type="button" class="sprite-hit" aria-label="Compost bin — type compost"></button>
+              <div class="sprite-fx-wrap bin-sprite-wrap">
+                <img class="sprite-img" src="assets/Green.png" alt="" data-asset="Green.png" />
+              </div>
+              <span class="sprite-label channel-name">Compost</span>
+              <span class="sprite-sub channel-role">Organic cycle</span>
+              <div class="prompt-anchor" id="prompt-compost"></div>
+            </div>
+            <div class="sprite-interactive channel-bin bin bin-recovery channel-recycle" data-bin="recycle" id="bin-recycle">
+              <button type="button" class="sprite-hit" aria-label="Recycle bin — type recycle"></button>
+              <div class="sprite-fx-wrap bin-sprite-wrap">
+                <img class="sprite-img" src="assets/Blue.png" alt="" data-asset="Blue.png" />
+              </div>
+              <span class="sprite-label channel-name">Recycle</span>
+              <span class="sprite-sub channel-role">Material recovery</span>
+              <div class="prompt-anchor" id="prompt-recycle"></div>
+            </div>
+            <div class="sprite-interactive channel-bin bin bin-recovery channel-trash" data-bin="trash" id="bin-trash">
+              <button type="button" class="sprite-hit" aria-label="Trash bin — type trash"></button>
+              <div class="sprite-fx-wrap bin-sprite-wrap">
+                <img class="sprite-img" src="assets/Red.png" alt="" data-asset="Red.png" />
+              </div>
+              <span class="sprite-label channel-name">Trash</span>
+              <span class="sprite-sub channel-role">Final discard</span>
+              <div class="prompt-anchor" id="prompt-trash"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="order-queue" id="order-queue">
+          <div class="queue-title">Orders</div>
+          <ul class="queue-list" id="queue-list"></ul>
+        </div>
+
+        <div class="typing-console" id="typing-console">
+          <div class="typing-label" id="typing-label">Type the word on screen</div>
+          <div class="word-display" id="word-display" aria-live="polite"></div>
+          <div class="typing-hint" id="typing-hint"></div>
+        </div>
+
+        <div class="dialogue-panel" id="dialogue-panel">
+          <div class="dialogue-speaker" id="dialogue-speaker">Narrator</div>
+          <p class="dialogue-text" id="dialogue-text"></p>
+          <p class="dialogue-continue"><kbd>Space</kbd> for next line</p>
+        </div>
+
+        <div id="fx-layer" class="fx-layer" aria-hidden="true"></div>
+      </div>
+
+      <!-- Results -->
+      <div id="screen-results" class="screen screen-results hidden">
+        <div class="results-card">
+          <h2 id="results-title">You’re off the clock</h2>
+          <div class="stars" id="results-stars" aria-hidden="true"></div>
+          <ul class="results-stats" id="results-stats"></ul>
+          <p class="results-flavor" id="results-flavor"></p>
+          <p class="results-next-prompt" id="results-next-prompt">Ready for the next level?</p>
+          <div class="results-actions">
+            <a
+              href="eco-lab-kitchen-to-closet/index.html"
+              class="btn-primary results-next-level"
+              id="btn-next-level"
+              >Next level — Eco Lab</a
+            >
+            <button type="button" class="btn-secondary" id="btn-results-menu">Back to menu</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <footer class="footer-hint">
+      Keys: you can type any time · for ~10s after a new prompt shows, the guest timer and recovery clock pause so you can read · <kbd>Space</kbd> for chat · recovery words: donation, compost, recycle, trash
+      <span class="footer-suite-sep" aria-hidden="true"> · </span>
+      <a href="eco-lab-kitchen-to-closet/index.html" class="footer-deck-link">Eco Lab — kitchen to closet</a>
+    </footer>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/dialogue.js"></script>
+  <script src="js/piano-typing.js"></script>
+  <script src="js/typing.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

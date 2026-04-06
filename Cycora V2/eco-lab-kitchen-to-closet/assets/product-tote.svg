@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Tote bag">
+  <path d="M18 32 L22 62 L58 62 L62 32 Z" fill="#c4a574" stroke="#8b6914" stroke-width="2"/>
+  <path d="M26 32 Q26 18 40 18 Q54 18 54 32" fill="none" stroke="#8b6914" stroke-width="3"/>
+  <rect x="30" y="38" width="20" height="16" rx="2" fill="#6b8f71" opacity="0.85"/>
+  <path d="M22 32 L58 32" stroke="#5a4a38" stroke-width="2"/>
+</svg>

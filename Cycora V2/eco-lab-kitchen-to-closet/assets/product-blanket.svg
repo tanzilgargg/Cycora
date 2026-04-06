@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Blanket">
+  <rect x="10" y="28" width="60" height="36" rx="4" fill="#8b7355" stroke="#5a4030" stroke-width="2"/>
+  <path d="M10 40 L70 40 M10 48 L70 48 M26 28 L26 64 M40 28 L40 64 M54 28 L54 64" stroke="#a89078" stroke-width="1.5" opacity="0.8"/>
+  <rect x="14" y="32" width="52" height="8" fill="#6b8f71" opacity="0.4"/>
+</svg>
