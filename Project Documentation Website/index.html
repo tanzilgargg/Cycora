@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cycora | Project Documentation</title>
+    <meta
+      name="description"
+      content="Cycora: Kitchen Chaos is a two-phase typing game about running a busy kitchen, serving customers, and sorting leftovers into better recovery paths."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Manrope:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="phase-service">
+    <div class="page-grain" aria-hidden="true"></div>
+    <div class="page-orbits" aria-hidden="true">
+      <span class="orbit orbit-a"></span>
+      <span class="orbit orbit-b"></span>
+      <span class="orbit orbit-c"></span>
+    </div>
+    <div class="custom-cursor" aria-hidden="true">
+      <span class="custom-cursor-ring"></span>
+      <span class="custom-cursor-chef">
+        <img src="Icons/PlayerChef.png" alt="" />
+      </span>
+    </div>
+
+    <header class="site-header">
+      <div class="brand">
+          <strong>CYCORA</strong>
+      </div>
+
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-navigation">
+        Menu
+      </button>
+
+      <nav class="site-nav" id="site-navigation" aria-label="Main navigation">
+        <a href="#home">Home</a>
+        <a href="#systems">Gameplay</a>
+        <a href="#visuals">Visual Design</a>
+        <a href="#concept">Concept</a>
+        <a href="#about">About</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="section hero" id="home" data-phase="service" data-phase-label="Service" data-edition="01">
+        <div class="hero-stage">
+          <div class="hero-animation-band" aria-hidden="true">
+            <canvas id="particleCanvas"></canvas>
+
+            <div class="floating-elements">
+              <span class="float-card card-a">Typing Game</span>
+              <span class="float-card card-b">Restaurant Shift</span>
+              <span class="float-card card-c">Service Pressure</span>
+              <span class="float-card card-d">Food Recovery</span>
+              <span class="float-card card-e">Circular Systems</span>
+            </div>
+          </div>
+
+          <div class="hero-frontpage">
+            <div class="hero-copy">
+              <h1 class="sr-only">Cycora</h1>
+              <p class="hero-line type-ink" data-type-speed="18">
+                A two-phase 2D game where players manage surplus food under pressure, then redirect what remains through recovery pathways.
+              </p>
+            </div>
+
+            <div class="hero-details">
+              <div class="insight-panel overview-lead">
+                <span class="summary-label">Overview</span>
+                <p>
+                  I developed Cycora as a typing game that follows one restaurant shift from start
+                  to finish. In the service phase, players take customer orders, follow recipe steps at
+                  stations like fridge, pantry, chop, stove, sink, plating, and serve, and deliver meals
+                  before customers lose patience. In the recovery phase, they sort leftover food and
+                  packaging into donation, compost, recycle, or trash by reading short hints and typing the
+                  correct destination. I made the game for younger players, so it combines fast typing,
+                  clear prompts, and simple recovery decisions to show that kitchen work and waste
+                  management are connected.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-ledger" aria-label="Project at a glance">
+            <article class="ledger-item">
+              <span class="summary-label">Phases</span>
+              <strong class="count-number" data-target="2">0</strong>
+              <p>Urgent service followed by slower recovery.</p>
+            </article>
+            <article class="ledger-item">
+              <span class="summary-label">Recovery Paths</span>
+              <strong class="count-number" data-target="4">0</strong>
+              <p>Donation, compost, recycle, and trash.</p>
+            </article>
+            <article class="ledger-item">
+              <span class="summary-label">Shift Loop</span>
+              <strong class="count-number" data-target="1">0</strong>
+              <p>One playable shift connects labor to leftovers.</p>
+            </article>
+          </div>
+
+        <div class="hero-summary">
+          <article>
+            <span class="summary-label">Two-Phase Overview</span>
+            <p>
+              Phase 1 is about taking orders, preparing dishes, and serving meals fast. Phase 2 is about
+              sorting leftovers into the best recovery channel before time runs out.
+            </p>
+          </article>
+          <article>
+            <span class="summary-label">Why This Project Matters</span>
+            <p>
+              The game teaches that leftovers are not all the same. Some food can still help people, some
+              materials can be recovered, and trash should be the last option.
+            </p>
+          </article>
+          <article>
+            <span class="summary-label">Accessibility Features</span>
+            <p>
+              Players can turn on larger prompt text and high-contrast prompts, and new prompts briefly
+              pause timers so there is time to read before typing.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="systems" data-phase="service" data-phase-label="Service" data-edition="02">
+        <div class="section-split">
+          <div class="section-intro sticky-intro">
+            <p class="kicker">Gameplay</p>
+            <h2 class="type-ink" data-type-speed="18">Two Connected Phases</h2>
+            <p class="intro-note">
+              This section explains how the game works, what players do, and how the two phases connect.
+            </p>
+          </div>
+
+          <div class="cycle-body">
+            <div class="cycle-map">
+              <span class="summary-label">Full Session Loop</span>
+              <div class="cycle-track" aria-label="Full session loop">
+                <article class="cycle-step is-hot">
+                  <span class="cycle-step-index">01</span>
+                  <strong>Take Orders</strong>
+                  <p>Players type the active order prompt at a table so the dish enters the kitchen queue.</p>
+                </article>
+                <article class="cycle-step is-hot">
+                  <span class="cycle-step-index">02</span>
+                  <strong>Cook and Serve</strong>
+                  <p>Each dish follows a fixed station path, then the final serve word delivers it to the right guest.</p>
+                </article>
+                <article class="cycle-step is-transition">
+                  <span class="cycle-step-index">03</span>
+                  <strong>Shift Transition</strong>
+                  <p>When the timer ends, service stops, active guests clear out, and mentor dialogue introduces cleanup.</p>
+                </article>
+                <article class="cycle-step is-calm">
+                  <span class="cycle-step-index">04</span>
+                  <strong>Sort Recovery Paths</strong>
+                  <p>Players read leftover hints and type donation, compost, recycle, or trash for each item.</p>
+                </article>
+              </div>
+            </div>
+
+            <div class="cycle-compare">
+              <article class="compare-card phase-hot">
+                <span class="compare-label">Page Intro</span>
+                <p>
+                  The game starts with a kitchen rush where typing controls almost everything: taking
+                  orders, moving through recipe steps, and serving meals before patience runs out.
+                </p>
+              </article>
+              <article class="compare-card phase-calm">
+                <span class="compare-label">Results and Outcome</span>
+                <p>
+                  At the end of the shift, the results screen shows meals served, guests lost, correct
+                  sorts, missed sorts, donation-bound items, impact, profit, combo, and star rating.
+                </p>
+              </article>
+            </div>
+
+            <div class="phase-body service-section">
+              <article class="phase-story hot-panel">
+                <div class="phase-heading">
+                  <div class="phase-index">1</div>
+                  <div>
+                    <p class="kicker">System 1</p>
+                    <h3 class="type-ink" data-type-speed="16">Service Phase</h3>
+                    <p>
+                      The service phase lasts about 120 seconds. Customers arrive at tables, wait to place
+                      orders, and lose patience if the player takes too long. Players type the prompt for an
+                      active guest, send the dish into the queue, complete each station step in order, and
+                      type the final serve action to finish the meal.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="phase-grid service-grid">
+                  <article class="detail-card">
+                    <span class="card-label">Timed Rush</span>
+                    <p>
+                      A 120-second timer sets the pace. The HUD keeps time, profit, impact, meals served,
+                      and combo visible while the kitchen gets busier.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Guest Flow and Patience</span>
+                    <p>
+                      Customers sit at tables, wait for service, and leave if their patience runs out. The
+                      most urgent guest usually becomes the one players should handle first.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Order Taking</span>
+                    <p>
+                      Typing the order word locks in the dish, adds it to the queue, and gives a small
+                      patience reset so players can move into prep.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Cooking Pipeline</span>
+                    <p>
+                      Recipes follow fixed station paths such as soup: fridge, chop, sink, stove, plate,
+                      serve. Players follow the highlighted station instead of choosing the order themselves.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Serving</span>
+                    <p>
+                      After prep is complete, players type the final serve action and match the meal to the
+                      correct guest to close the loop.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Combo and Reward System</span>
+                    <p>
+                      Correct orders, prep steps, serves, and later correct recovery choices build combo.
+                      Losing a guest or making mistakes breaks the streak.
+                    </p>
+                  </article>
+                </div>
+              </article>
+
+              <aside class="interface-panel service-demo">
+                <div class="panel-header">
+                  <span>Controls and Flow</span>
+                </div>
+                <p>
+                  The first dishes are introduced in a guided order, starting with soup and then sandwich.
+                  After that, dishes are selected from a larger pool, so players need to watch the active
+                  prompt and react to what the kitchen needs next.
+                </p>
+                <div class="component-strip" aria-label="Service phase components">
+                  <article class="component-chip">
+                    <img src="Icons/Fridge.png" alt="Fridge icon representing cold storage." />
+                    <strong>Fridge</strong>
+                    <span>hold surplus safely</span>
+                  </article>
+                  <article class="component-chip">
+                    <img src="Icons/ChoppingStation.png" alt="Chopping station icon representing prep work." />
+                    <strong>Prep</strong>
+                    <span>prep food for cooking</span>
+                  </article>
+                  <article class="component-chip">
+                    <img src="Icons/Stove.png" alt="Stove icon representing cooking." />
+                    <strong>Cook</strong>
+                    <span>cook usable meals</span>
+                  </article>
+                  <article class="component-chip">
+                    <img src="Icons/PlatingCounter.png" alt="Plating counter icon representing final assembly." />
+                    <strong>Plate</strong>
+                    <span>finish each order</span>
+                  </article>
+                  <article class="component-chip">
+                    <img src="Icons/ServingCounter.png" alt="Serving counter icon representing delivery." />
+                    <strong>Serve</strong>
+                    <span>send food to its destination</span>
+                  </article>
+                </div>
+                <div class="ticket-stack">
+                  <div class="ticket" data-note="Orders stack quickly, so the player has to prioritize.">
+                    <strong>Take order</strong>
+                    <span>type the guest prompt to add a dish</span>
+                  </div>
+                  <div class="ticket" data-note="Recipe steps keep the player moving through the kitchen.">
+                    <strong>Advance recipe</strong>
+                    <span>move through kitchen stations in sequence</span>
+                  </div>
+                  <div class="ticket" data-note="Correct delivery closes the loop and resets table flow.">
+                    <strong>Serve meal</strong>
+                    <span>match the finished dish to the right table</span>
+                  </div>
+                </div>
+              </aside>
+            </div>
+
+            <div class="phase-body recovery-section">
+              <article class="phase-story calm-panel">
+                <div class="phase-heading">
+                  <div class="phase-index">2</div>
+                  <div>
+                    <p class="kicker">System 2</p>
+                    <h3 class="type-ink" data-type-speed="16">Recovery Phase</h3>
+                    <p>
+                      After the rush ends, the game moves into leftover sorting. Each item appears as a
+                      card with a small icon and a hint, and players type one of four destination words:
+                      donation, compost, recycle, or trash. The pace is slower than service, but the timer
+                      still matters.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="phase-grid recovery-grid">
+                  <article class="detail-card">
+                    <span class="card-label">Transition from Service to Recovery</span>
+                    <p>
+                      When the service timer ends, the kitchen phase stops, remaining guests leave, and the
+                      game shifts to dialogue and cleanup.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Timed Leftover Sorting</span>
+                    <p>
+                      A second timer runs during sorting. If time ends before all leftovers are handled,
+                      the unsorted ones count as missed sorts.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Four Recovery Channels</span>
+                    <p>
+                      Donation is for safe food, compost is for organic scraps, recycle is for clean
+                      packaging, and trash is the last option.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Reading Context and Making Decisions</span>
+                    <p>
+                      Players have to read the card hint before typing. The game is not about guessing fast;
+                      it is about matching the item to the correct destination.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Scoring and Impact</span>
+                    <p>
+                      Correct sorts increase impact, donation-worthy food adds strong value, and wrong sorts
+                      or missed leftovers reduce the final result.
+                    </p>
+                  </article>
+                  <article class="detail-card">
+                    <span class="card-label">Donation Mechanic</span>
+                    <p>
+                      Donation is special because it only counts when food is still safe for people. The
+                      game tracks donation-bound items to show that some leftovers still have social value.
+                    </p>
+                  </article>
+                </div>
+              </article>
+
+              <aside class="interface-panel recovery-demo">
+                <div class="panel-header">
+                  <span>Recovery Logic</span>
+                </div>
+                <div class="channel-components" aria-label="Recovery channel components">
+                  <article class="channel-chip">
+                    <img src="Icons/Green.png" alt="Green token for donation." />
+                    <strong>Donation</strong>
+                    <span>edible food goes back into community use</span>
+                  </article>
+                  <article class="channel-chip">
+                    <img src="Icons/Yellow.png" alt="Yellow token for compost." />
+                    <strong>Compost</strong>
+                    <span>organic waste returns to soil systems</span>
+                  </article>
+                  <article class="channel-chip">
+                    <img src="Icons/Blue.png" alt="Blue token for recycling." />
+                    <strong>Recycle</strong>
+                    <span>packaging moves into material recovery</span>
+                  </article>
+                  <article class="channel-chip">
+                    <img src="Icons/Red.png" alt="Red token for trash." />
+                    <strong>Trash</strong>
+                    <span>usable value is lost at this stage</span>
+                  </article>
+                </div>
+                <div class="sort-options" aria-label="Recovery channels">
+                  <span data-channel="donation" data-note="Keeps edible food in circulation.">Donation</span>
+                  <span data-channel="compost" data-note="Returns organics to a softer cycle.">Compost</span>
+                  <span data-channel="recycle" data-note="Routes packaging into material processing.">Recycle</span>
+                  <span data-channel="trash" data-note="Marks the point where value is lost.">Trash</span>
+                </div>
+              </aside>
+            </div>
+
+            <article class="systems-evidence">
+              <div class="systems-evidence-copy">
+                <span class="card-label">Interaction Evidence</span>
+                <h3>Gameplay frame from the working build</h3>
+                <p>
+                  This gameplay frame shows the dining room, kitchen stations, HUD, and dialogue in one
+                  view. It helps explain how players move from table prompts to recipe steps and then to
+                  service.
+                </p>
+              </div>
+              <div class="systems-evidence-media">
+                <img src="Gameplay Screenshot.png" alt="Gameplay screenshot showing Cycora's kitchen, dining room, and HUD." />
+              </div>
+            </article>
+
+            <article class="systems-evidence results-evidence">
+              <div class="systems-evidence-copy">
+                <span class="card-label">Results Screen</span>
+                <h3>End-of-shift outcome and player feedback</h3>
+                <p>
+                  This screen appears after both phases are complete. It brings together meals served,
+                  guests lost, correct and missed sorts, donation-bound items, profit, impact, and longest
+                  combo, then converts that full shift into a star rating. It helps show that the final
+                  outcome depends on both kitchen performance and recovery decisions.
+                </p>
+              </div>
+              <div class="systems-evidence-media">
+                <img src="Results.png" alt="Cycora results screen showing star rating, meals served, guests lost, sorting results, donation-bound items, profit, impact, and combo." />
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="visuals" data-phase="recovery" data-phase-label="Recovery" data-edition="03">
+        <div class="section-split">
+          <div class="section-intro sticky-intro">
+            <p class="kicker">Visual Design</p>
+            <h2 class="type-ink" data-type-speed="18">Readable, Fast, Distinct</h2>
+            <p class="intro-note">
+              This section focuses on interface decisions, visual hierarchy, and documentation of the
+              final look.
+            </p>
+          </div>
+
+          <div class="logic-body">
+            <div class="logic-grid">
+              <article class="logic-card logic-lead">
+                <span class="card-label">Page Intro</span>
+                <p>
+                  The interface is built to help players read quickly. It uses station labels, table areas,
+                  prompts, and a clear HUD so younger players can understand what to type next.
+                </p>
+              </article>
+              <article class="logic-card">
+                <span class="card-label">Visual Language</span>
+                <p>
+                  Highlighted stations, simple icons, and clear prompt words help players follow recipe
+                  order without needing to guess where to go next.
+                </p>
+              </article>
+              <article class="logic-card">
+                <span class="card-label">Interface Design</span>
+                <p>
+                  The HUD shows time, profit, impact, meals served, and combo during service, then shifts
+                  to recovery choices and hints in the sorting phase.
+                </p>
+              </article>
+              <article class="logic-card">
+                <span class="card-label">Phase Contrast</span>
+                <p>
+                  The service phase looks busier because tables, recipes, and timing all compete for
+                  attention. The recovery phase is calmer and centered on one item card at a time.
+                </p>
+              </article>
+              <article class="logic-card">
+                <span class="card-label">Accessibility</span>
+                <p>
+                  Large prompts, high-contrast prompts, and a short reading pause when a new typing word
+                  appears help players read before reacting.
+                </p>
+              </article>
+              <article class="logic-card">
+                <span class="card-label">Process and Iteration</span>
+                <p>
+                  Wireframes and layout tests helped work out where tables, stations, dialogue, typing
+                  input, and recovery cards should sit so the screen stays readable.
+                </p>
+              </article>
+            </div>
+
+            <div class="decisions-body">
+              <article class="decision-card">
+                <span class="decision-type">Visuals</span>
+                <h3>Quick Reading</h3>
+                <p>
+                  The visual design focuses on quick reading, clear task flow, and a strong contrast
+                  between service pressure and end-of-shift recovery.
+                </p>
+              </article>
+              <article class="decision-card">
+                <span class="decision-type">Accessibility Features</span>
+                <h3>Readable at Pace</h3>
+                <p>
+                  Optional settings help keep the game fast-paced without making it feel too visually or
+                  cognitively overwhelming, especially during prompt changes and timed moments.
+                </p>
+              </article>
+            </div>
+
+            <article class="video-showcase" data-note="Moving footage makes the shift from urgency to recovery easier to read.">
+              <div class="video-copy">
+                <span class="card-label">Gameplay Video</span>
+                <h3>Playable flow in motion</h3>
+                <p>
+                  This gameplay clip shows how the kitchen, dining room, HUD, and dialogue systems work
+                  together during play. It helps show the pacing of the shift more clearly than still
+                  images alone.
+                </p>
+              </div>
+              <div class="video-frame">
+                <video controls autoplay muted loop playsinline preload="metadata">
+                  <source src="Gameplay video.mov" type="video/quicktime" />
+                  Your browser does not support the gameplay video preview.
+                </video>
+              </div>
+            </article>
+      </section>
+
+      <section class="section" id="concept" data-phase="recovery" data-phase-label="Recovery" data-edition="04">
+        <div class="section-split">
+          <div class="section-intro sticky-intro">
+            <p class="kicker">Concept</p>
+            <h2 class="type-ink" data-type-speed="18">Labor and Waste in One Loop</h2>
+            <p class="intro-note">
+              This section focuses on the project rationale, learning goal, and the research framing
+              behind the game.
+            </p>
+          </div>
+
+          <div class="logic-body">
+            <div class="logic-grid">
+              <article class="logic-card logic-lead">
+                <span class="card-label">Core Idea</span>
+                <p>
+                  I made Cycora as an educational typing game about the connection between food waste,
+                  leftovers, and food access. I wanted to turn one kitchen shift into something
+                  players can actively practise instead of only reading about.
+                </p>
+              </article>
+              <article class="logic-card">
+                <span class="card-label">Why Restaurants?</span>
+                <p>
+                  I chose a restaurant shift because it is easy for younger players to understand: it has
+                  clear roles, visible pressure, and obvious leftovers. It lets me place service work and
+                  waste decisions in the same setting.
+                </p>
+              </article>
+              <article class="logic-card">
+                <span class="card-label">Why Typing?</span>
+                <p>
+                  I chose typing because it connects reading and action in a simple way. Players see a
+                  word, understand what it means, and immediately use it to take an order, complete a
+                  recipe step, or sort a leftover.
+                </p>
+              </article>
+              <article class="logic-card">
+                <span class="card-label">Circular Economy Framing</span>
+                <p>
+                  I used four destinations in the recovery phase because leftovers should not all be treated
+                  the same. Donation, compost, recycle, and trash each represent a different next step for
+                  food or packaging.
+                </p>
+              </article>
+              <article class="logic-card outcome-card">
+                <span class="card-label">Learning and Takeaway</span>
+                <p>
+                  My main takeaway is that speed matters in a kitchen, but so do the choices made after
+                  service. I wanted the project to show that leftovers can still be useful, and that the
+                  best result comes from serving well and sorting carefully.
+                </p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="about" data-phase="neutral" data-phase-label="Archive" data-edition="05">
+        <div class="section-split">
+          <div class="section-intro sticky-intro">
+            <p class="kicker">About</p>
+            <h2 class="type-ink" data-type-speed="18">Creator</h2>
+            <p class="intro-note">
+              About the creator
+            </p>
+          </div>
+
+          <div class="logic-body">
+            <article class="about-panel">
+              <div>
+                <span class="card-label">About the Creator</span>
+                <p>
+                  I am Tanzil Garg, a UX researcher and designer interested in interactive systems,
+                  player experience, and how design can make complex processes easier to understand
+                  through participation.
+                </p>
+              </div>
+
+              <dl class="about-list">
+                <div>
+                  <dt>Role</dt>
+                  <dd>Project concept, game design, UX/UI design, research, writing, prototyping, and documentation.</dd>
+                </div>
+                <div>
+                  <dt>Project Metadata</dt>
+                  <dd>Interactive game prototype, screen-based, one-session shift structure, keyboard typing, 2026.</dd>
+                </div>
+                <div>
+                  <dt>Themes</dt>
+                  <dd>Food systems, labor, waste, circular economy.</dd>
+                </div>
+              </dl>
+            </article>
+
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-block">
+
+        <nav class="footer-links" aria-label="Footer links">
+          <a href="mailto:tanzilgarg@gmail.com">Email</a>
+          <a href="https://www.linkedin.com/in/tanzilgarg/">LinkedIn</a>
+        </nav>
+
+        <p class="footer-meta">© 2026 Tanzil Garg</p>
+      </div>
+    </footer>
+
+    <div class="media-lightbox" hidden>
+      <button class="lightbox-nav lightbox-prev" type="button">Previous</button>
+      <div class="lightbox-stage">
+        <div class="lightbox-media"></div>
+        <div class="lightbox-copy">
+          <span class="lightbox-type"></span>
+          <h2 class="lightbox-title"></h2>
+          <p class="lightbox-caption"></p>
+        </div>
+      </div>
+      <button class="lightbox-nav lightbox-next" type="button">Next</button>
+      <button class="lightbox-dismiss" type="button">Close</button>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
