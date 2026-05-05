@@ -1,6 +1,6 @@
 /**
  * Soft piano-style plucks for typing feedback (Web Audio API).
- * Shared by Kitchen Chaos and Eco Lab. No external assets.
+ * Shared by the Cycora browser games. No external assets.
  */
 (function (global) {
   var ctx = null;
