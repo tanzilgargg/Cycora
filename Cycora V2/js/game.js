@@ -1,55 +1,29 @@
 /**
- * Cycora: Kitchen Chaos — state machine, service phase, waste phase, customers, orders
+ * Cycora mini-game progression.
+ * One reusable typing runner powers short, kid-friendly levels across the cafe,
+ * recipe rush, material discovery lab, fabric workshop, product studio, and final loop.
  */
 class CycoraGame {
   constructor(els, options) {
     this.els = els;
+    this.cfg = window.CycoraConfig;
     this.largePrompts = !!options.largePrompts;
     this.highContrast = !!options.highContrast;
-
-    this.cfg = window.CycoraConfig;
-    this.phaseCfg = this.cfg.rollPhaseTimings();
-
-    this.state = "boot";
-    this.dialogueQueue = [];
-    this.serviceTimeLeft = 0;
-    this.wasteTimeLeft = 0;
-    this.spawnTimer = 0;
-    this.nextSpawnIn = 3;
-
-    this.customers = [];
-    this.orders = [];
-    this.nextCustomerId = 1;
-    this.nextOrderId = 1;
-    this.tutorialFlags = { soupHint: false, sandwichHint: false };
-    this.spawnCount = 0;
-
-    this.stats = {
-      mealsServed: 0,
-      ordersTaken: 0,
-      missedCustomers: 0,
-      wrongSorts: 0,
-      correctSorts: 0,
-      profit: 0,
-      impact: 0,
-      wasteSorted: 0,
-      /** Correct sorts into donation — supports community reuse */
-      transformationMaterials: 0,
-      combo: 0,
-      maxCombo: 0,
-    };
-
-    this.leftovers = [];
-    this.currentLeftoverIndex = 0;
-
+    this.practiceMode = !!options.practiceMode;
+    this.levels = this.createLevels();
+    this.levelIndex = 0;
+    this.currentLevel = null;
+    this.tasks = [];
+    this.taskIndex = 0;
+    this.state = "map";
+    this.timeLeft = 0;
+    this.timer = null;
     this.activePrompt = null;
-    this.chefPose = "idle";
-    /** When set, closing dialogue returns here instead of starting a new service */
-    this.resumeState = null;
-    /** Skip re-applying typing target when unchanged (avoids resetting progress every frame) */
-    this._promptSig = null;
-    /** Until this time (sec), patience / waste timer pause for the current prompt */
-    this._typingGraceUntil = null;
+    this.result = null;
+    this.stats = this.emptyStats();
+    this.unlocked = this.readUnlocked();
+    this.currentAchievement = null;
+    this.boardPausedTimer = false;
 
     this.typing = new TypingManager({
       allowBackspace: true,
@@ -59,964 +33,1564 @@ class CycoraGame {
       onMistake: () => this.onTypingMistake(),
     });
 
-    this.wasteChoice = new ChoiceTypingManager({
+    this.choiceTyping = new ChoiceTypingManager({
       allowBackspace: true,
       wordDisplayEl: els.wordDisplay,
       hintEl: els.typingHint,
-      onComplete: (w) => this.onWasteTyped(w),
+      onComplete: (word) => this.onChoiceComplete(word),
       onMistake: () => this.onTypingMistake(),
     });
 
-    this._tickBound = this.tick.bind(this);
-    this._lastTs = 0;
-    this.animationFrame = null;
-
+    this.prepareProgressionUI();
     this.applyAccessibility();
   }
 
+  emptyStats() {
+    return {
+      typed: 0,
+      mistakes: 0,
+      helped: 0,
+      saved: 0,
+      meals: 0,
+      products: 0,
+      decisions: 0,
+      recoveryScore: 100,
+      qualityScore: 100,
+      fairnessScore: 100,
+      correctSorts: 0,
+      wrongSorts: 0,
+      recipesCompleted: [],
+      materialsRescued: [],
+      productsMade: [],
+      sortExplanations: [],
+      loopEvents: [],
+      achievements: [],
+      scrapsCollected: [],
+      materialsDiscovered: [],
+      textilesCreated: [],
+      communityImpacts: [],
+      lastProduct: "",
+      lastTextile: "",
+      currentScrap: "",
+      stars: 0,
+      sticker: "",
+      circularScore: 0,
+    };
+  }
+
   applyAccessibility() {
-    const v = this.els.viewport;
-    v.classList.toggle("large-prompts", this.largePrompts);
-    v.classList.toggle("high-contrast", this.highContrast);
+    this.els.viewport.classList.toggle("large-prompts", this.largePrompts);
+    this.els.viewport.classList.toggle("high-contrast", this.highContrast);
   }
 
-  graceSeconds() {
-    const n = Number(this.cfg.typingGraceSeconds);
-    return n > 0 ? n : 0;
+  readUnlocked() {
+    const saved = Number(localStorage.getItem("cycora_kid_progress_unlocked"));
+    if (Number.isFinite(saved) && saved >= 1) return Math.min(saved, 6);
+    return 1;
   }
 
-  isTypingGraceActive() {
-    if (this._typingGraceUntil == null) return false;
-    return performance.now() / 1000 < this._typingGraceUntil;
+  saveUnlocked(n) {
+    this.unlocked = Math.max(this.unlocked, Math.min(n, this.levels.length));
+    localStorage.setItem("cycora_kid_progress_unlocked", String(this.unlocked));
   }
 
-  beginTypingGrace() {
-    const g = this.graceSeconds();
-    if (g > 0) this._typingGraceUntil = performance.now() / 1000 + g;
-    else this._typingGraceUntil = null;
+  createLevels() {
+    return [
+      {
+        id: 1,
+        title: "Restaurant / Cafe",
+        mapName: "Restaurant / Cafe",
+        icon: "Cafe",
+        area: "Dining room queue",
+        goal: "Serve guests, remember requests, and notice the scraps service creates.",
+        seconds: 70,
+        sticker: "Table Captain",
+        builder: () => [
+          this.customerPeek([
+            { name: "mia", table: 1, dish: "salad", request: "no dairy", patience: 38, scrap: "orange peels" },
+            { name: "leo", table: 2, dish: "toast", request: "to-go", patience: 72, scrap: "avocado pits" },
+            { name: "zoe", table: 3, dish: "bowl", request: "small portion", patience: 55, scrap: "banana fibers" },
+          ]),
+          this.decisionTask("customer", "mia", ["mia", "zoe", "leo"], "Mia has the lowest patience. Handle her first.", "Good priority."),
+          this.memoryChoice("dish", "salad", ["salad", "toast", "bowl"], "Mia's order flashed by. Which dish did she ask for?"),
+          this.memoryChoice("request", "nodairy", ["nodairy", "togo", "small"], "Remember the special request before the kitchen starts."),
+          this.decisionTask("customer", "zoe", ["zoe", "leo"], "Mia is safe. Zoe has less patience than Leo now.", "Nice queue read."),
+          this.memoryChoice("request", "small", ["nodairy", "togo", "small"], "Which request keeps Zoe happy?"),
+          this.decisionTask("customer", "leo", ["leo", "mia"], "Finish the last waiting order.", "Line cleared."),
+          this.scrapReveal("Service scraps", ["orange peels", "banana fibers", "avocado pits", "coffee grounds"], "A busy cafe creates useful material leftovers."),
+        ],
+      },
+      {
+        id: 2,
+        title: "Recipe / Lunch Rush",
+        mapName: "Recipe / Lunch Rush",
+        icon: "Rush",
+        area: "Recipe rail",
+        goal: "Build recipes through stations and see which scraps each path creates.",
+        seconds: 80,
+        sticker: "Rush Planner",
+        builder: () => [
+          this.recipeIntro("Citrus salad", ["fridge", "sink", "chop", "plate"], "Creates lemon and orange peels."),
+          this.stationChoice("fridge", ["fridge", "pantry"], "Start with chilled citrus and greens."),
+          this.stationChoice("sink", ["sink", "stove", "chop"], "Wash before chopping. Stove is busy."),
+          this.stationChoice("chop", ["chop", "plate"], "Missing step: Fridge -> Sink -> ? -> Plate."),
+          this.stationChoice("plate", ["plate", "stove"], "Finish the cold salad."),
+          this.scrapReveal("Citrus salad scraps", ["lemon peels", "orange peels"], "Peels can hold color and finishing oils."),
+          this.recipeIntro("Corn soup", ["pantry", "sink", "chop", "stove", "plate"], "Limited stove time means every station choice matters."),
+          this.stationChoice("pantry", ["pantry", "fridge"], "Corn and spices start in the pantry."),
+          this.stationChoice("sink", ["sink", "plate"], "Clean the corn before chopping."),
+          this.stationChoice("chop", ["chop", "stove"], "Strip kernels and save the husks."),
+          this.stationChoice("stove", ["stove", "sink"], "Stove is open now."),
+          this.stationChoice("plate", ["plate", "pantry"], "Serve the soup."),
+          this.scrapReveal("Corn soup scraps", ["corn husks"], "Husks have structure for woven material."),
+          this.recipeIntro("Coffee service", ["pantry", "sink", "stove", "plate"], "A quick drink order still creates material."),
+          this.stationChoice("pantry", ["pantry", "fridge"], "Choose beans from the pantry."),
+          this.stationChoice("stove", ["stove", "chop"], "Heat water while the sink is busy."),
+          this.stationChoice("plate", ["plate", "sink"], "Send the cup out."),
+          this.scrapReveal("Coffee service scraps", ["coffee grounds"], "Grounds can become pigment for print."),
+        ],
+      },
+      {
+        id: 3,
+        title: "Waste to Material Lab",
+        mapName: "Waste to Material Lab",
+        icon: "Lab",
+        area: "Material scanner",
+        goal: "Scan scraps, reveal hidden properties, and match each to its best path.",
+        seconds: 75,
+        sticker: "Material Detective",
+        builder: () => [
+          this.labScan("orange peels", ["color potential", "citrus oils", "soft rind"], "Scan reveals warm dye potential."),
+          this.materialMatch("orange peels", "natural dye", ["dye", "thread", "print"], "Orange peels release color better than they spin.", "dye", "Orange peels are best as natural dye, not thread."),
+          this.labScan("banana fibers", ["fiber strength", "long strands", "plant cellulose"], "Scan reveals strong strands."),
+          this.materialMatch("banana fibers", "plant thread", ["thread", "pigment", "finish"], "Long banana strands can twist into thread.", "thread", "Banana fibers are long enough for thread."),
+          this.labScan("corn husks", ["woven texture", "flexible strips", "dry strength"], "Scan reveals woven structure."),
+          this.materialMatch("corn husks", "woven fiber", ["fiber", "dye", "pigment"], "Husks can soften into strips for woven cloth.", "fiber", "Corn husks work as woven fiber."),
+          this.labScan("coffee grounds", ["brown pigment", "crumbly texture", "print grit"], "Scan reveals pigment, not thread."),
+          this.materialMatch("coffee grounds", "brown pigment", ["pigment", "thread", "fiber"], "Coffee is too crumbly for thread, but great for pigment.", "pigment", "Coffee grounds are too crumbly for thread, but they can become pigment."),
+          this.labScan("avocado pits", ["pink dye", "tannin", "slow simmer"], "Scan reveals dye inside the pit."),
+          this.materialMatch("avocado pits", "pink dye", ["dye", "weave", "print"], "Avocado pits can simmer into soft pink dye.", "dye", "Avocado pits hold dye and tannins."),
+        ],
+      },
+      {
+        id: 4,
+        title: "Fiber & Fabric Workshop",
+        mapName: "Fiber & Fabric Workshop",
+        icon: "Fabric",
+        area: "Workshop line",
+        goal: "Move materials through the right process chain with careful settings.",
+        seconds: 90,
+        sticker: "Fabric Maker",
+        builder: () => [
+          this.ecoIntro("orange peels", "dyed cloth", ["collect", "wash", "extract", "dye", "dry"], "Orange peel -> color bath -> dyed cloth."),
+          this.ecoChoice("collect", ["collect", "spin", "weave"], "Start by collecting a clean peel batch.", "orange peels", "dyed cloth"),
+          this.ecoChoice("wash", ["wash", "dye", "press"], "Wash before extracting color.", "orange peels", "dyed cloth"),
+          this.ecoChoice("extract", ["extract", "weave", "stitch"], "Extract color from the washed peels.", "orange peels", "dyed cloth"),
+          this.settingTask("medium", ["low", "medium", "high"], "Set heat for bright dye without scorching.", "orange peels", "dyed cloth"),
+          this.ecoChoice("dye", ["dye", "spin", "pack"], "Dye the fabric with the citrus color.", "orange peels", "dyed cloth"),
+          this.ecoChoice("dry", ["dry", "grind"], "Dry the cloth so the color sets.", "orange peels", "dyed cloth"),
+          this.ecoIntro("banana fibers", "woven textile", ["collect", "peel", "extract", "spin", "weave"], "Banana fiber -> thread -> woven textile."),
+          this.ecoChoice("collect", ["collect", "dye", "pack"], "Gather the long banana fiber pieces.", "banana fibers", "woven textile"),
+          this.ecoChoice("peel", ["peel", "print", "dye"], "Peel away soft parts to reach fiber.", "banana fibers", "woven textile"),
+          this.ecoChoice("extract", ["extract", "press", "dry"], "Extract the strongest fiber strands.", "banana fibers", "woven textile"),
+          this.settingTask("slow", ["slow", "fast", "hot"], "Use slow spin speed so thread does not snap.", "banana fibers", "woven textile"),
+          this.ecoChoice("spin", ["spin", "dye", "chop"], "Spin fiber into thread.", "banana fibers", "woven textile"),
+          this.ecoChoice("weave", ["weave", "grind"], "Weave thread into cloth.", "banana fibers", "woven textile"),
+          this.ecoIntro("coffee grounds", "printed fabric", ["collect", "dry", "grind", "mix", "print"], "Coffee grounds -> pigment -> printed fabric."),
+          this.ecoChoice("collect", ["collect", "weave", "stitch"], "Collect used grounds from the cafe bar.", "coffee grounds", "printed fabric"),
+          this.ecoChoice("dry", ["dry", "dye"], "Dry grounds before grinding.", "coffee grounds", "printed fabric"),
+          this.ecoChoice("grind", ["grind", "spin", "weave"], "Grind into even pigment.", "coffee grounds", "printed fabric"),
+          this.settingTask("balanced", ["thin", "balanced", "thick"], "Mix pigment so it prints clearly.", "coffee grounds", "printed fabric"),
+          this.ecoChoice("print", ["print", "peel"], "Print the brown pattern onto fabric.", "coffee grounds", "printed fabric"),
+        ],
+      },
+      {
+        id: 5,
+        title: "Product Studio",
+        mapName: "Product Studio",
+        icon: "Studio",
+        area: "Design table",
+        goal: "Choose useful products, reduce cutting waste, and finish textile items.",
+        seconds: 65,
+        sticker: "Studio Designer",
+        builder: () => [
+          this.studioPlan("Fabric rack: strong woven, soft dyed, thick woven, and printed cloth."),
+          this.productTask("strong woven fabric", "tote", ["tote", "scarf", "banner"], "Strong cloth can carry groceries and market tools.", "tote -> farmers market kit"),
+          this.layoutTask("nest", ["nest", "scatter", "oversize"], "Nest pattern pieces close together to reduce offcuts."),
+          this.assemblyTask("stitch", ["stitch", "glue", "skip"], "Stitch handles so the tote can carry weight."),
+          this.finishTask("label", ["label", "plain", "wet"], "Add a Cycora label so people know the material story."),
+          this.productTask("soft dyed cloth", "scarf", ["scarf", "tote", "placemat"], "Soft fabric fits close to skin.", "scarf -> winter clothing drive"),
+          this.layoutTask("stripe", ["stripe", "waste", "crumple"], "Cut a long scarf strip from the dyed cloth."),
+          this.assemblyTask("hem", ["hem", "tear", "rush"], "Hem the edges for comfort."),
+          this.productTask("printed fabric", "pouch", ["pouch", "blanket", "apron"], "Printed cloth makes a small zero-waste lunch pouch."),
+          this.finishTask("patch", ["patch", "soak", "hide"], "Add a patch that shows the coffee-pigment print."),
+        ],
+      },
+      {
+        id: 6,
+        title: "Full Cycora Shift",
+        mapName: "Full Cycora Shift",
+        icon: "Loop",
+        area: "Whole Cycora loop",
+        goal: "Run the complete food-to-fabric loop from order to reuse impact.",
+        seconds: 110,
+        sticker: "Cycora Champion",
+        builder: () => [
+          this.customerPeek([
+            { name: "mia", table: 1, dish: "salad", request: "to-go", patience: 44, scrap: "orange peels" },
+            { name: "leo", table: 2, dish: "toast", request: "no dairy", patience: 66, scrap: "avocado pits" },
+          ]),
+          this.decisionTask("customer", "mia", ["mia", "leo"], "Start with the lower patience table."),
+          this.memoryChoice("dish", "salad", ["salad", "toast", "soup"], "Recall Mia's dish before prep."),
+          this.memoryChoice("request", "togo", ["togo", "nodairy", "small"], "Remember the service request."),
+          this.recipeIntro("Citrus salad", ["fridge", "sink", "chop", "plate"], "This choice creates citrus peels for dye."),
+          this.stationChoice("fridge", ["fridge", "pantry"], "Pull chilled citrus and greens."),
+          this.stationChoice("sink", ["sink", "stove"], "Wash before chopping."),
+          this.stationChoice("chop", ["chop", "plate"], "Chop and save clean peels."),
+          this.stationChoice("plate", ["plate", "serve"], "Plate, then serve."),
+          this.serveTask("salad", 1, "Serve citrus salad to table 1."),
+          this.scrapReveal("Scrap collected", ["orange peels", "lemon peels"], "The recipe created dye-rich citrus peels."),
+          this.labScan("orange peels", ["color potential", "citrus oils", "soft rind"], "The scanner finds a strong dye path."),
+          this.materialMatch("orange peels", "natural dye", ["dye", "thread", "fiber"], "Early recipe choices decide the lab material.", "dye", "Orange peels become dye before they become textile color."),
+          this.ecoIntro("orange peels", "dyed cloth", ["collect", "wash", "extract", "dye", "dry"], "Orange peels -> citrus dye -> dyed cloth."),
+          this.ecoChoice("collect", ["collect", "spin", "weave"], "Collect the clean peel batch.", "orange peels", "dyed cloth"),
+          this.ecoChoice("wash", ["wash", "print"], "Wash before extraction.", "orange peels", "dyed cloth"),
+          this.ecoChoice("extract", ["extract", "stitch"], "Extract citrus color.", "orange peels", "dyed cloth"),
+          this.settingTask("medium", ["low", "medium", "high"], "Medium heat protects color.", "orange peels", "dyed cloth"),
+          this.ecoChoice("dye", ["dye", "spin"], "Dye the fabric.", "orange peels", "dyed cloth"),
+          this.ecoChoice("dry", ["dry", "grind"], "Dry the finished cloth.", "orange peels", "dyed cloth"),
+          this.productTask("colorful dyed cloth", "apron", ["apron", "blanket", "rope"], "A cafe apron can return to the restaurant.", "apron -> returned to the restaurant"),
+          this.layoutTask("nest", ["nest", "scatter", "oversize"], "Cut apron pieces closely to avoid waste."),
+          this.assemblyTask("stitch", ["stitch", "glue", "skip"], "Stitch straps and pocket."),
+          this.finishTask("patch", ["patch", "plain", "wet"], "Add the citrus-dye patch."),
+          this.deliveryTask("apron", "restaurant", 4, "Return the apron to the cafe for reuse."),
+          this.loopSummary(),
+        ],
+      },
+    ];
   }
 
-  /** Extra hint line: timers are paused briefly for new prompts */
-  graceHint(baseText) {
-    const g = this.graceSeconds();
-    if (g <= 0 || !baseText) return baseText;
-    return `${baseText} · chill ${g}s — timers are frozen while you read`;
+  customerTask(word, table, hint) {
+    return { type: "word", mode: "customer", word, table, hint, label: "Type the greeting", feedback: "Great greeting!" };
+  }
+
+  customerPeek(customers) {
+    return { type: "info", mode: "customerPeek", customers, duration: 1550, hint: "Orders appear for a moment. Remember dish, request, and patience." };
+  }
+
+  decisionTask(mode, answer, choices, hint, feedback = "Good choice.") {
+    return { type: "choice", mode, answer, choices, hint, label: "Choose the next move", feedback, countsDecision: true };
+  }
+
+  memoryChoice(kind, answer, choices, hint) {
+    return { type: "choice", mode: "memory", kind, answer, choices, hint, label: "Order memory", feedback: "You remembered it.", countsDecision: true };
+  }
+
+  stationTask(station, word, hint) {
+    return { type: "word", mode: "station", station, word, hint, label: this.stationName(station), feedback: "Nice station work!" };
+  }
+
+  scrapReveal(title, scraps, hint) {
+    return { type: "info", mode: "scrapReveal", title, scraps, hint, duration: 1450 };
+  }
+
+  stationChoice(answer, choices, hint) {
+    return { type: "choice", mode: "stationChoice", station: answer, answer, choices, hint, label: "Pick station", feedback: "Efficient path.", countsDecision: true };
+  }
+
+  serveTask(dish, table, hint) {
+    return { type: "word", mode: "serve", station: "serve", word: dish, dish, table, hint, label: "Serve the table", feedback: "Meal delivered!" };
+  }
+
+  sortTask(item, answer, condition, explanation) {
+    const choices = ["donation", "compost", "recycle", "trash"];
+    return {
+      type: "choice",
+      mode: "sort",
+      item,
+      answer,
+      choices,
+      hint: condition,
+      explanation,
+      label: "Sort the card",
+      feedback: answer === "trash" ? "Last resort, used carefully." : "Recovered.",
+      countsDecision: true,
+    };
+  }
+
+  separateTask(answer, condition, explanation) {
+    return { type: "choice", mode: "separate", item: "Mixed drink card", answer, choices: ["drain", "lid", "cup"], hint: condition, explanation, label: "Separate first", feedback: "Separated.", countsDecision: true };
+  }
+
+  labScan(material, properties, hint) {
+    return { type: "info", mode: "labScan", material, properties, hint, duration: 1500 };
+  }
+
+  materialMatch(material, product, choices, hint, answer = product, explanation = "") {
+    return { type: "choice", mode: "material", material, product, answer, choices, hint, explanation, label: "Choose material path", feedback: "Potential discovered.", countsDecision: true };
+  }
+
+  ecoIntro(material, product, steps, hint = `${material} can become a ${product}.`) {
+    return { type: "info", mode: "eco", material, product, steps, hint };
+  }
+
+  ecoTask(material, product, word) {
+    return { type: "word", mode: "eco", word, material, product, hint: `${material} → ${product}. Type ${word}.`, label: "Eco Lab conveyor", feedback: "The belt moves!" };
+  }
+
+  ecoChoice(answer, choices, hint, material = "rescued scraps", product = "product") {
+    return { type: "choice", mode: "eco", word: answer, answer, choices, material, product, hint, label: "Eco Lab station", feedback: "Process quality up.", countsDecision: true };
+  }
+
+  settingTask(answer, choices, hint, material = "rescued scraps", product = "textile") {
+    return { type: "choice", mode: "setting", answer, choices, hint, material, product, label: "Machine setting", feedback: "Quality protected.", countsDecision: true };
+  }
+
+  deliveryPlan(hint) {
+    return { type: "info", mode: "deliveryPlan", duration: 1400, hint };
+  }
+
+  studioPlan(hint) {
+    return { type: "info", mode: "studioPlan", duration: 1400, hint };
+  }
+
+  productTask(fabric, answer, choices, hint, impact) {
+    return { type: "choice", mode: "product", fabric, answer, choices, hint, impact, label: "Choose product", feedback: "Useful product match.", countsDecision: true };
+  }
+
+  layoutTask(answer, choices, hint) {
+    return { type: "choice", mode: "layout", answer, choices, hint, label: "Pattern layout", feedback: "Waste reduced.", countsDecision: true };
+  }
+
+  assemblyTask(answer, choices, hint) {
+    return { type: "choice", mode: "assembly", answer, choices, hint, label: "Assemble", feedback: "Product stronger.", countsDecision: true };
+  }
+
+  finishTask(answer, choices, hint) {
+    return { type: "choice", mode: "finish", answer, choices, hint, label: "Finish design", feedback: "Design finished.", countsDecision: true };
+  }
+
+  loopSummary() {
+    return { type: "info", mode: "loopSummary", duration: 1800, hint: "Food served -> scraps collected -> material discovered -> textile created -> product reused." };
+  }
+
+  deliveryTask(product, answer, people, hint) {
+    return {
+      type: "choice",
+      mode: "delivery",
+      product,
+      answer,
+      people,
+      choices: ["shelter", "market", "winter", "restaurant"],
+      hint,
+      label: "Delivery helper",
+      feedback: `${people} people helped!`,
+    };
+  }
+
+  stationName(station) {
+    return {
+      fridge: "Fridge",
+      pantry: "Pantry",
+      chop: "Chop",
+      sink: "Sink",
+      stove: "Stove",
+      plate: "Plate",
+      serve: "Serve",
+    }[station] || station;
+  }
+
+  prepareProgressionUI() {
+    const menuCard = this.els.screenMenu.querySelector(".menu-card");
+    if (menuCard && !menuCard.dataset.progressionReady) {
+      menuCard.dataset.progressionReady = "1";
+      menuCard.classList.add("progression-card");
+      menuCard.innerHTML = `
+        <div class="map-head">
+          <p class="map-kicker">Cycora World</p>
+          <h2>Pick your next shift</h2>
+          <p class="menu-blurb">Six connected levels move from restaurant service to material discovery, fabric making, product design, and reuse impact.</p>
+        </div>
+        <div class="map-options">
+          <label class="accessibility-toggle"><input type="checkbox" id="opt-large-prompts" /> <span>Larger prompt text</span></label>
+          <label class="accessibility-toggle"><input type="checkbox" id="opt-high-contrast" /> <span>High-contrast prompts</span></label>
+          <label class="accessibility-toggle"><input type="checkbox" id="opt-practice-mode" /> <span>Practice mode: no timer</span></label>
+          <button type="button" class="map-board-btn" id="btn-map-leaderboard">Achievement board</button>
+        </div>
+        <div class="level-map" id="level-map"></div>
+      `;
+    }
+
+    if (!document.getElementById("mini-game-board")) {
+      const board = document.createElement("div");
+      board.id = "mini-game-board";
+      board.className = "mini-game-board";
+      board.innerHTML = `
+        <div class="mini-progress">
+          <span id="mini-level-pill">Level</span>
+          <strong id="mini-level-title">Mini game</strong>
+          <span id="mini-step-count">0/0</span>
+        </div>
+        <div class="mini-stage" id="mini-stage"></div>
+        <div class="recipe-path" id="recipe-path"></div>
+      `;
+      this.els.screenGame.appendChild(board);
+    }
+
+    this.mapEl = document.getElementById("level-map");
+    this.miniStage = document.getElementById("mini-stage");
+    this.recipePath = document.getElementById("recipe-path");
+    this.levelPill = document.getElementById("mini-level-pill");
+    this.levelTitle = document.getElementById("mini-level-title");
+    this.stepCount = document.getElementById("mini-step-count");
+
+    const next = document.getElementById("btn-next-level");
+    if (next) {
+      next.removeAttribute("href");
+      next.textContent = "Next level";
+      next.addEventListener("click", (e) => {
+        e.preventDefault();
+        const nextIndex = Math.min(this.levelIndex + 1, this.levels.length - 1);
+        this.startLevel(nextIndex);
+      });
+    }
+    const menu = document.getElementById("btn-results-menu");
+    if (menu) menu.textContent = "Level map";
+    if (!document.getElementById("btn-retry-level")) {
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.id = "btn-retry-level";
+      retry.className = "btn-secondary";
+      retry.textContent = "Retry";
+      const actions = document.querySelector(".results-actions");
+      if (actions) actions.insertBefore(retry, actions.firstChild);
+      retry.addEventListener("click", () => this.startLevel(this.levelIndex));
+    }
+
+    document.getElementById("btn-map-leaderboard")?.addEventListener("click", () => this.showLeaderboard());
+    document.getElementById("btn-hud-leaderboard")?.addEventListener("click", () => this.showLeaderboard());
+    document.getElementById("btn-results-leaderboard")?.addEventListener("click", () => this.showLeaderboard());
+    document.getElementById("btn-close-leaderboard")?.addEventListener("click", () => this.hideLeaderboard());
+    this.els.leaderboardModal?.addEventListener("click", (e) => {
+      if (e.target === this.els.leaderboardModal) this.hideLeaderboard();
+    });
   }
 
   startIntroDialogue() {
-    this.dialogueQueue = window.CycoraDialogue.intro().map((d) => ({ ...d }));
-    this.state = "dialogue";
-    this.showDialogue(true);
-    this.updatePrompts();
-    this.advanceDialogueLine();
+    this.showLevelMap();
   }
 
-  showDialogue(visible) {
-    this.els.dialoguePanel.classList.toggle("hidden", !visible);
-  }
-
-  advanceDialogueLine() {
-    if (this.dialogueQueue.length === 0) {
-      this.showDialogue(false);
-      if (this.state === "dialogue") {
-        if (this.resumeState === "service") {
-          this.state = "service";
-          this.resumeState = null;
-          this.startLoop();
-          this.updatePrompts();
-          return;
-        }
-        this.beginServicePhase();
-        return;
-      }
-      if (this.state === "dialogue_waste") {
-        this.beginWastePhase();
-        return;
-      }
-      if (this.state === "dialogue_post") {
-        this.showResults();
-      }
-      return;
-    }
-    const line = this.dialogueQueue.shift();
-    this.els.dialogueSpeaker.textContent = line.speaker;
-    this.els.dialogueText.textContent = line.text;
-  }
-
-  onSpace() {
-    if (this.state === "menu" || this.state === "results") return;
-
-    if (this.state === "dialogue" || this.state === "dialogue_waste" || this.state === "dialogue_post") {
-      this.advanceDialogueLine();
-      return;
-    }
-
-    if (this.state === "transition_overlay") {
-      return;
-    }
-  }
-
-  beginServicePhase() {
-    this.state = "service";
-    this._typingGraceUntil = null;
-    this.serviceTimeLeft = this.phaseCfg.service;
-    this.spawnTimer = 0;
-    this.nextSpawnIn = 2;
-    this.spawnCount = 0;
-    this.ensureTables();
-    this.flashPhaseBanner("Rush hour — go go go");
-    this.startLoop();
-    this.refreshHUD();
-    this.updatePrompts();
-  }
-
-  flashPhaseBanner(text) {
-    const layer = this.els.fxLayer;
-    const ov = document.createElement("div");
-    ov.className = "phase-overlay";
-    ov.innerHTML = `<div class="banner">${text}</div>`;
-    layer.appendChild(ov);
-    setTimeout(() => {
-      ov.style.opacity = "0";
-      setTimeout(() => ov.remove(), 400);
-    }, 1200);
-  }
-
-  ensureTables() {
-    const host = this.els.tablesContainer;
-    host.innerHTML = "";
-    const furnitureHtml = `
-        <div class="dining-furniture">
-          <img class="furniture-chair" src="assets/Chair.png" alt="" data-asset="Chair.png" />
-          <img class="furniture-table" src="assets/Table.png" alt="" data-asset="Table.png" />
-        </div>
-      `;
-    for (let i = 0; i < this.cfg.maxTables; i += 1) {
-      const slot = document.createElement("div");
-      slot.className = "table-slot";
-      slot.dataset.table = String(i);
-      slot.innerHTML = `
-        <div class="customer-slot" id="customer-${i}"></div>
-        ${furnitureHtml}
-      `;
-      host.appendChild(slot);
-    }
-    const decorN = Math.max(0, Math.floor(Number(this.cfg.decorativeSeatPairs) || 0));
-    for (let j = 0; j < decorN; j += 1) {
-      const slot = document.createElement("div");
-      slot.className = "table-slot table-slot-decor";
-      slot.setAttribute("aria-hidden", "true");
-      slot.innerHTML = furnitureHtml;
-      host.appendChild(slot);
-    }
-  }
-
-  startLoop() {
-    if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
-    this._lastTs = performance.now();
-    this.animationFrame = requestAnimationFrame(this._tickBound);
-  }
-
-  stopLoop() {
-    if (this.animationFrame) {
-      cancelAnimationFrame(this.animationFrame);
-      this.animationFrame = null;
-    }
-  }
-
-  tick(ts) {
-    const dt = Math.min(0.05, (ts - this._lastTs) / 1000);
-    this._lastTs = ts;
-
-    if (this.state === "service") {
-      this.serviceTimeLeft -= dt;
-      this.spawnTimer += dt;
-      this.updateCustomers(dt);
-      if (this.spawnTimer >= this.nextSpawnIn) {
-        this.trySpawnCustomer();
-        this.spawnTimer = 0;
-        const { customerSpawnMin, customerSpawnMax } = this.phaseCfg;
-        this.nextSpawnIn = customerSpawnMin + Math.random() * (customerSpawnMax - customerSpawnMin);
-      }
-      if (this.serviceTimeLeft <= 0) {
-        this.serviceTimeLeft = 0;
-        this.endServicePhase();
-      }
-    } else if (this.state === "waste") {
-      if (!this.isTypingGraceActive()) {
-        this.wasteTimeLeft -= dt;
-      }
-      if (this.wasteTimeLeft <= 0) {
-        this.wasteTimeLeft = 0;
-        this.endWastePhase();
-      }
-    }
-
-    this.refreshHUD();
-    this.animationFrame = requestAnimationFrame(this._tickBound);
-  }
-
-  trySpawnCustomer() {
-    const emptyTable = this.findEmptyTable();
-    if (emptyTable === -1) return;
-    const dish = this.pickDishForSpawn();
-    const c = this.createCustomer(emptyTable, dish);
-    this.customers.push(c);
-    this.renderCustomer(c);
-  }
-
-  findEmptyTable() {
-    for (let i = 0; i < this.cfg.maxTables; i += 1) {
-      if (!this.customers.some((c) => c.tableIndex === i && c.state !== "gone")) return i;
-    }
-    return -1;
-  }
-
-  pickDishForSpawn() {
-    this.spawnCount += 1;
-    if (this.spawnCount === 1) return "soup";
-    if (this.spawnCount === 2) return "sandwich";
-    const pool = this.cfg.randomDishPool;
-    if (!pool || !pool.length) return "soup";
-    return pool[Math.floor(Math.random() * pool.length)];
-  }
-
-  createCustomer(tableIndex, dish) {
-    const id = this.nextCustomerId++;
-    const maxP = this.phaseCfg.patience;
-    return {
-      id,
-      tableIndex,
-      dish,
-      state: "entering",
-      patience: maxP,
-      maxPatience: maxP,
-      enterTimer: 0.85,
-      orderId: null,
-    };
-  }
-
-  renderCustomer(c) {
-    const wrap = document.getElementById(`customer-${c.tableIndex}`);
-    if (!wrap) return;
-    wrap.innerHTML = "";
-    const el = document.createElement("div");
-    el.className = "customer entering";
-    el.dataset.cid = String(c.id);
-    const colors = ["#6b8ce8", "#c76b9e", "#5cb8a8", "#c9a24d"];
-    const color = colors[c.id % colors.length];
-    el.innerHTML = `
-      <div class="patience-bar"><div class="patience-fill" style="width:100%"></div></div>
-      <div class="customer-head"></div>
-      <div class="customer-body" style="background:${color}"></div>
-      <div class="order-bubble empty" id="bubble-${c.id}">?</div>
-      <div class="speech-order hidden" id="speech-${c.id}"></div>
-    `;
-    wrap.appendChild(el);
-  }
-
-  updateCustomers(dt) {
-    for (const c of this.customers) {
-      if (c.state === "gone") continue;
-
-      if (c.state === "entering") {
-        c.enterTimer -= dt;
-        if (c.enterTimer <= 0) {
-          c.state = "seated";
-          c.seatTimer = 0.4 + Math.random() * 0.35;
-        }
-        continue;
-      }
-
-      if (c.state === "seated") {
-        c.seatTimer -= dt;
-        if (c.seatTimer <= 0) {
-          c.state = "want_order";
-          this.maybeEnqueueTutorialDialogue(c);
-          this.showOrderSpeech(c);
-        }
-        continue;
-      }
-
-      if (c.state === "want_order" || c.state === "waiting_food") {
-        if (!this.isTypingGraceActive()) {
-          c.patience -= dt;
-        }
-        if (c.patience <= 0) {
-          this.abandonCustomer(c);
-        }
-      }
-
-      this.updatePatienceUI(c);
-    }
-    this.customers = this.customers.filter((c) => c.state !== "gone");
-    this.updatePrompts();
-  }
-
-  maybeEnqueueTutorialDialogue(c) {
-    if (c.dish === "soup" && !this.tutorialFlags.soupHint) {
-      this.tutorialFlags.soupHint = true;
-      this.pushDialogueFront(window.CycoraDialogue.firstOrderSoup());
-    } else if (c.dish === "sandwich" && !this.tutorialFlags.sandwichHint) {
-      this.tutorialFlags.sandwichHint = true;
-      this.pushDialogueFront(window.CycoraDialogue.firstSandwich());
-    }
-  }
-
-  pushDialogueFront(lines) {
-    const incoming = lines.map((d) => ({ ...d }));
-    if (this.state === "service") {
-      this.resumeState = "service";
-      this.dialogueQueue = incoming.concat(this.dialogueQueue);
-      this.state = "dialogue";
-      this.showDialogue(true);
-      this.typing.clear();
-      this.wasteChoice.clear();
-      this.stopLoop();
-      this.updatePrompts();
-      this.advanceDialogueLine();
-      return;
-    }
-    this.dialogueQueue = incoming.concat(this.dialogueQueue);
-  }
-
-  showOrderSpeech(c) {
-    if (!c.orderPromptWord) {
-      c.orderPromptWord = window.cycoraPick(this.cfg.wordPools.order);
-    }
-    const sp = document.getElementById(`speech-${c.id}`);
-    if (!sp) return;
-    sp.textContent = c.orderPromptWord.toUpperCase();
-    sp.classList.remove("hidden");
-  }
-
-  updatePatienceUI(c) {
-    const el = document.querySelector(`[data-cid="${c.id}"]`);
-    if (!el) return;
-    const bar = el.querySelector(".patience-fill");
-    if (!bar) return;
-    const pct = Math.max(0, (c.patience / c.maxPatience) * 100);
-    bar.style.width = `${pct}%`;
-    bar.classList.toggle("low", pct < 35);
-    const head = el.querySelector(".customer-head");
-    if (head) {
-      head.classList.remove("customer-face-happy", "customer-face-sad");
-      if (c.state === "eating") head.classList.add("customer-face-happy");
-      else if (
-        pct < 35 &&
-        (c.state === "want_order" || c.state === "waiting_food")
-      ) {
-        head.classList.add("customer-face-sad");
-      }
-    }
-  }
-
-  abandonCustomer(c) {
-    if (c.state === "want_order" || c.state === "waiting_food") {
-      this.stats.missedCustomers += 1;
-      this.stats.impact += this.cfg.impact.missedCustomer;
-      this.stats.combo = 0;
-      if (c.orderId) {
-        const o = this.orders.find((x) => x.id === c.orderId);
-        if (o) o.cancelled = true;
-      }
-    }
-    c.state = "gone";
-    const wrap = document.getElementById(`customer-${c.tableIndex}`);
-    if (wrap) wrap.innerHTML = "";
-    this.updatePrompts();
-  }
-
-  endServicePhase() {
-    this.stopLoop();
-    this._typingGraceUntil = null;
-    this.typing.clear();
-    this.wasteChoice.clear();
-    this.clearStationHighlights();
-    this.clearPromptAnchors();
-    for (const c of this.customers) {
-      if (c.state !== "gone") this.abandonCustomer(c);
-    }
-    this.orders = [];
-    this.dialogueQueue = window.CycoraDialogue.toWaste().map((d) => ({ ...d }));
-    this.state = "dialogue_waste";
-    this.showDialogue(true);
-    this.updatePrompts();
-    this.advanceDialogueLine();
-  }
-
-  fillRecoveryLegend() {
-    const host = document.getElementById("recovery-legend-body");
-    if (!host || host.dataset.filled === "1") return;
-    host.dataset.filled = "1";
-    host.innerHTML = this.cfg.recoveryChannels
-      .map(
-        (c) =>
-          `<p><strong>${c.label}</strong> — ${c.playerGuide}</p>`,
-      )
-      .join("");
-  }
-
-  beginWastePhase() {
-    this.state = "waste";
-    this._typingGraceUntil = null;
-    this.wasteTimeLeft = this.phaseCfg.waste;
-    this.buildLeftovers();
-    this.fillRecoveryLegend();
-    const titleEl = document.getElementById("recovery-dock-title");
-    if (titleEl) titleEl.textContent = this.cfg.recoveryCopy.dockTitle;
-    this.els.wasteDock.classList.remove("hidden");
-    if (this.els.screenGame) this.els.screenGame.classList.add("waste-phase");
-    this.flashPhaseBanner(this.cfg.recoveryCopy.phaseBanner);
-    this.currentLeftoverIndex = 0;
-    this.updateWasteUI();
-    this.updatePrompts();
-    this.startLoop();
-  }
-
-  buildLeftovers() {
-    const n = 5 + Math.floor(Math.random() * 3);
-    const pool = [
-      {
-        bin: "donation",
-        icon: "\u{1F35E}",
-        hint: "Still good — someone could eat this. Donation keeps it in the community loop.",
-      },
-      {
-        bin: "donation",
-        icon: "\u{1F966}",
-        hint: "Packaged leftovers that are still safe — fine for donation, not for the compost pile.",
-      },
-      {
-        bin: "compost",
-        icon: "\u{1F346}",
-        hint: "Veggie scraps — won’t work as a meal, but perfect for compost.",
-      },
-      {
-        bin: "compost",
-        icon: "\u{1F33F}",
-        hint: "Coffee grounds / peels — chuck in compost, not the blue bin.",
-      },
-      {
-        bin: "recycle",
-        icon: "\u{1F4E6}",
-        hint: "Clean cardboard or packaging — dry enough that recycling can handle it.",
-      },
-      {
-        bin: "recycle",
-        icon: "\u{267B}",
-        hint: "Rinsed can or bottle — no gunk stuck inside.",
-      },
-      {
-        bin: "trash",
-        icon: "\u{1F37D}",
-        hint: "Gross mixed plate scrap — too contaminated for donation or compost.",
-      },
-      {
-        bin: "trash",
-        icon: "\u{1F9F2}",
-        hint: "Greasy plastic wrap — basically unrecyclable; trash it.",
-      },
-    ];
-    this.leftovers = [];
-    for (let i = 0; i < n; i += 1) {
-      const pick = pool[Math.floor(Math.random() * pool.length)];
-      this.leftovers.push({
-        id: i,
-        correctBin: pick.bin,
-        icon: pick.icon,
-        hint: pick.hint,
-      });
-    }
-  }
-
-  updateWasteUI() {
-    const slot = this.els.leftoverSlot;
-    const cur = this.leftovers[this.currentLeftoverIndex];
-    if (!cur) {
-      slot.innerHTML = `<p class="leftover-meta">All sorted!</p>`;
-      this.els.wasteHint.textContent =
-        "That’s the whole pile — nice. What you picked changes how much actually gets reused.";
-      return;
-    }
-    slot.innerHTML = `
-      <div class="leftover-card leftover-card-recovery">
-        <span class="leftover-icon">${cur.icon}</span>
-        <p class="leftover-meta">${cur.hint}</p>
-      </div>
-    `;
-    this.els.wasteHint.textContent =
-      "Where should this go? Type donation, compost, recycle, or trash — donation is for food people can still use.";
-  }
-
-  endWastePhase() {
-    if (this.state !== "waste") return;
-    while (this.currentLeftoverIndex < this.leftovers.length) {
-      this.stats.impact += this.cfg.impact.sortWrong;
-      this.stats.wrongSorts += 1;
-      this.currentLeftoverIndex += 1;
-    }
-    try {
-      localStorage.setItem(
-        "cycora_transformation_materials",
-        String(this.stats.transformationMaterials),
-      );
-    } catch (_) {
-      /* ignore quota / private mode */
-    }
-    this.state = "dialogue_post";
-    this.els.wasteDock.classList.add("hidden");
-    if (this.els.screenGame) this.els.screenGame.classList.remove("waste-phase");
-    this._typingGraceUntil = null;
-    this.typing.clear();
-    this.wasteChoice.clear();
-    this.clearStationHighlights();
-    this.clearPromptAnchors();
-
-    const stars = this.computeStars();
-    const grade = window.CycoraDialogue.resultsGrade(stars);
-    this.dialogueQueue = [grade];
-    this.showDialogue(true);
-    this.updatePrompts();
-    this.advanceDialogueLine();
-  }
-
-  computeStars() {
-    let s = 1;
-    if (this.stats.mealsServed >= 3) s += 1;
-    if (this.stats.correctSorts >= 4 && this.stats.wrongSorts <= 1) s += 1;
-    if (this.stats.missedCustomers === 0 && this.stats.mealsServed >= 4) s += 1;
-    if (this.stats.transformationMaterials >= 4) s += 1;
-    return Math.min(5, s);
-  }
-
-  showResults() {
-    this.state = "results";
-    this.stopLoop();
-    this.showDialogue(false);
+  showLevelMap() {
+    this.state = "map";
+    this.stopTimer();
+    this.boardPausedTimer = false;
+    this.clearPlayUI();
     this.els.screenGame.classList.add("hidden");
-    this.els.screenResults.classList.remove("hidden");
-
-    const stars = this.computeStars();
-    this.els.resultsStars.textContent = "\u2605".repeat(stars) + "\u2606".repeat(5 - stars);
-
-    const items = [
-      ["Meals you got out", String(this.stats.mealsServed)],
-      ["Guests you lost", String(this.stats.missedCustomers)],
-      ["Sorts you nailed", String(this.stats.correctSorts)],
-      ["Sorts you missed", String(this.stats.wrongSorts)],
-      [
-        "Donation-bound stuff",
-        String(this.stats.transformationMaterials),
-      ],
-      ["Money in the drawer", `$${this.stats.profit}`],
-      ["Impact points", String(this.stats.impact)],
-      ["Longest combo", String(this.stats.maxCombo)],
-    ];
-    this.els.resultsStats.innerHTML = items
-      .map(([k, v]) => `<li><span>${k}</span><strong>${v}</strong></li>`)
-      .join("");
-
-    this.els.resultsFlavor.textContent =
-      "Here, leftovers aren’t invisible — you routed them somewhere. Stuff you donated can still feed people. Keep leaning on that bin when it fits.";
-  }
-
-  restartToMenu() {
     this.els.screenResults.classList.add("hidden");
     this.els.screenMenu.classList.remove("hidden");
-    this.state = "menu";
+    this.renderLevelMap();
   }
 
-  /** Stable id for the current typing task — only full refresh when this changes */
-  computePromptSignature() {
-    if (this.state === "dialogue" || this.state === "dialogue_waste" || this.state === "dialogue_post") {
-      return `D|${this.state}`;
-    }
-    if (this.state === "waste") {
-      const cur = this.leftovers[this.currentLeftoverIndex];
-      if (!cur) return "W|done";
-      return `W|${this.currentLeftoverIndex}|${cur.correctBin}`;
-    }
-    if (this.state !== "service") {
-      return `X|${this.state}`;
-    }
-    const op = this.findOrderTakingPrompt();
-    if (op) {
-      const w = op.customer.orderPromptWord || "pending";
-      return `S|ord|${op.customer.id}|${w}`;
-    }
-    const pr = this.findPrepPrompt();
-    if (pr) {
-      const { word } = this.getOrAssignStepWord(pr.order);
-      return `S|prep|${pr.order.id}|${pr.station}|${pr.order.stepIndex}|${word}`;
-    }
-    const sv = this.findServePrompt();
-    if (sv) {
-      const { word } = this.getOrAssignStepWord(sv.order);
-      return `S|srv|${sv.order.id}|${word}`;
-    }
-    return "S|idle";
+  renderLevelMap() {
+    if (!this.mapEl) return;
+    this.unlocked = this.readUnlocked();
+    this.mapEl.innerHTML = this.levels
+      .map((level, i) => {
+        const unlocked = i + 1 <= this.unlocked;
+        const done = i + 1 < this.unlocked;
+        return `
+          <button type="button" class="level-node ${unlocked ? "" : "locked"} ${done ? "done" : ""}" data-level="${i}" ${unlocked ? "" : "disabled"}>
+            <span class="level-node-icon">${level.icon}</span>
+            <span class="level-node-number">Level ${level.id}</span>
+            <strong>${level.mapName}</strong>
+            <small>${unlocked ? level.goal : "Locked"}</small>
+          </button>
+        `;
+      })
+      .join("");
+    this.mapEl.querySelectorAll(".level-node:not(.locked)").forEach((btn) => {
+      btn.addEventListener("click", () => this.startLevel(Number(btn.dataset.level)));
+    });
   }
 
-  getOrAssignStepWord(order) {
-    const steps = this.cfg.recipeSteps[order.dish];
-    const i = order.stepIndex;
-    if (i >= steps.length) return { station: null, word: "" };
-    const station = steps[i];
-    if (!order.stepWords) order.stepWords = {};
-    const k = `${i}|${station}`;
-    if (!order.stepWords[k]) {
-      const pool = this.cfg.wordPools[station];
-      order.stepWords[k] = window.cycoraPick(pool);
-    }
-    return { station, word: order.stepWords[k] };
+  startLevel(index) {
+    this.levelIndex = index;
+    this.currentLevel = this.levels[index];
+    this.tasks = this.currentLevel.builder();
+    this.taskIndex = 0;
+    this.stats = this.emptyStats();
+    this.stats.sticker = this.currentLevel.sticker;
+    this.currentAchievement = null;
+    this.result = null;
+    this.state = "playing";
+    this.practiceMode = !!document.getElementById("opt-practice-mode")?.checked;
+    this.largePrompts = !!document.getElementById("opt-large-prompts")?.checked;
+    this.highContrast = !!document.getElementById("opt-high-contrast")?.checked;
+    this.timeLeft = this.practiceMode ? Infinity : this.currentLevel.seconds;
+    this.applyAccessibility();
+
+    this.els.screenMenu.classList.add("hidden");
+    this.els.screenResults.classList.add("hidden");
+    this.els.screenGame.classList.remove("hidden");
+    this.els.dialoguePanel.classList.add("hidden");
+    this.els.wasteDock.classList.add("hidden");
+    this.els.screenGame.classList.remove("waste-phase");
+    this.ensureTables(this.currentLevel.id === 1 || this.currentLevel.id === 2 ? 3 : 2);
+    this.seedDiningRoom();
+    this.renderHUD();
+    this.flashPhaseBanner(this.currentLevel.title);
+    this.showTask();
+    this.startTimer();
   }
 
-  /** Resolve next typing target */
-  updatePrompts() {
-    const nextSig = this.computePromptSignature();
-    if (nextSig === this._promptSig) return;
-    this._promptSig = nextSig;
+  ensureTables(count) {
+    const host = this.els.tablesContainer;
+    host.innerHTML = "";
+    for (let i = 0; i < count; i += 1) {
+      const slot = document.createElement("div");
+      slot.className = "table-slot";
+      slot.innerHTML = `
+        <div class="customer-slot" id="customer-${i}"></div>
+        <div class="dining-furniture">
+          <img class="furniture-chair" src="Assets/Chair.png" alt="" data-asset="Assets/Chair.png" />
+          <img class="furniture-table" src="Assets/Table.png" alt="" data-asset="Assets/Table.png" />
+        </div>
+      `;
+      host.appendChild(slot);
+    }
+  }
 
-    this.clearPromptAnchors();
-    this.clearStationHighlights();
+  renderCustomer(table, dish) {
+    const wrap = document.getElementById(`customer-${table - 1}`);
+    if (!wrap) return;
+    const colors = ["#6b8ce8", "#c76b9e", "#6b8f71"];
+    wrap.innerHTML = `
+      <div class="customer mini-customer" data-mini-table="${table}">
+        <div class="customer-head customer-face-happy"></div>
+        <div class="customer-body" style="background:${colors[table - 1] || "#c78b4a"}"></div>
+        <div class="speech-order">${dish ? this.cfg.dishEmoji[dish] || dish : "?"}</div>
+      </div>
+    `;
+  }
 
-    if (this.state === "dialogue" || this.state === "dialogue_waste" || this.state === "dialogue_post") {
-      this._typingGraceUntil = null;
+  seedDiningRoom() {
+    if (!this.currentLevel) return;
+    if (this.currentLevel.id === 1) return;
+    if (this.currentLevel.id === 2) {
+      this.renderCustomer(1, "soup");
+      this.renderCustomer(2, "salad");
+      this.renderCustomer(3, "pasta");
+    }
+    if (this.currentLevel.id === 6) {
+      this.renderCustomer(1, "pasta");
+      this.renderCustomer(2, "soup");
+    }
+  }
+
+  startTimer() {
+    this.stopTimer();
+    if (this.practiceMode) {
+      this.renderHUD();
+      return;
+    }
+    this.timer = setInterval(() => {
+      if (this.state !== "playing") return;
+      this.timeLeft -= 1;
+      this.renderHUD();
+      if (this.timeLeft <= 0) this.finishLevel("time");
+    }, 1000);
+  }
+
+  stopTimer() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  renderHUD() {
+    this.els.hudTimer.textContent = this.practiceMode ? "Practice" : `${Math.max(0, Math.ceil(this.timeLeft))}s`;
+    this.els.hudProfit.textContent = `L${this.currentLevel ? this.currentLevel.id : 1}`;
+    this.els.hudImpact.textContent = String(this.stats.saved + this.stats.helped);
+    this.els.hudMeals.textContent = String(this.stats.meals);
+    this.els.hudWaste.textContent = String(this.uniqueList(this.stats.scrapsCollected.concat(this.stats.materialsDiscovered)).length);
+    this.els.hudCombo.textContent = `${this.taskIndex}/${this.tasks.length}`;
+    const redirectLab = document.getElementById("hud-redirect-label");
+    if (redirectLab) redirectLab.textContent = "Materials";
+  }
+
+  showTask() {
+    if (this.taskIndex >= this.tasks.length) {
+      this.finishLevel("complete");
+      return;
+    }
+    const task = this.tasks[this.taskIndex];
+    this.activePrompt = task;
+    this.clearPlayUI(false);
+    const ecoModes = ["eco", "material", "setting", "delivery", "route", "deliveryPlan", "labScan", "studioPlan", "product", "layout", "assembly", "finish", "loopSummary"];
+    this.els.screenGame.classList.toggle("eco-lab-phase", ecoModes.includes(task.mode));
+    this.levelPill.textContent = `Level ${this.currentLevel.id}`;
+    this.levelTitle.textContent = this.currentLevel.title;
+    this.stepCount.textContent = `${this.taskIndex + 1}/${this.tasks.length}`;
+    this.renderQueue(task);
+    this.logInfoTask(task);
+    this.renderTaskVisual(task);
+    this.renderHUD();
+
+    if (task.type === "info") {
+      this.choiceTyping.clear();
       this.typing.clear();
-      this.wasteChoice.clear();
-      this.els.typingLabel.textContent = "Reading — Space for next line";
+      this.els.typingLabel.textContent = "Look at the path";
+      this.els.typingHint.textContent = "Nice. Next step is coming...";
+      setTimeout(() => {
+        if (this.activePrompt === task && this.state === "playing") {
+          this.taskIndex += 1;
+          this.showTask();
+        }
+      }, task.duration || 950);
       return;
     }
 
-    if (this.state === "waste") {
-      const cur = this.leftovers[this.currentLeftoverIndex];
-      if (!cur) {
-        this._typingGraceUntil = null;
-        this.typing.clear();
-        this.wasteChoice.clear();
-        this.els.typingLabel.textContent = "All sorted";
-        return;
+    if (task.type === "choice") {
+      this.typing.clear();
+      this.els.typingLabel.textContent = task.label;
+      this.choiceTyping.setChoices(task.choices);
+      if (task.mode === "sort") {
+        this.els.typingHint.textContent = "Read the card condition, then type the recovery route you choose.";
+      } else if (task.mode === "separate") {
+        this.els.typingHint.textContent = `Choose the first separation action: ${task.choices.join(" · ")}`;
+      } else {
+        this.els.typingHint.textContent = `${task.hint} Type: ${task.choices.join(" · ")}`;
       }
-      this.typing.clear();
-      this.activePrompt = { kind: "waste", leftover: cur };
-      this.els.typingLabel.textContent = "Pick a bin — type the word";
-      this.highlightBins();
-      this.setChefPose("at-waste");
-      this.wasteChoice.setChoices(this.cfg.sortTypeWords);
-      this.beginTypingGrace();
-      this.els.typingHint.textContent = this.graceHint(
-        "donation · compost · recycle · trash — donation = still-good food for people.",
-      );
       return;
     }
 
-    if (this.state !== "service") {
-      this.typing.clear();
-      this.wasteChoice.clear();
+    this.choiceTyping.clear();
+    this.els.typingLabel.textContent = task.label;
+    this.typing.setTarget(task.word, task.hint);
+  }
+
+  renderQueue(task) {
+    const title = this.els.queueList.previousElementSibling;
+    if (title) title.textContent = this.currentLevel.area;
+    const rows = [];
+    if (task.mode === "customerPeek") rows.push(...task.customers.map((c) => `${c.name}: ${c.dish}, ${c.request}, patience ${c.patience}%`));
+    if (task.mode === "scrapReveal") rows.push(`${task.title}: ${task.scraps.join(" / ")}`);
+    if (task.mode === "customer") rows.push(`Choose: ${task.choices ? task.choices.join(" / ") : `Table ${task.table}`}`);
+    if (task.mode === "memory") rows.push(`Memory check: ${task.kind}`);
+    if (task.mode === "stationChoice") rows.push(`Recipe station: ${task.choices.join(" / ")}`);
+    if (task.mode === "serve") rows.push(`${this.cfg.dishEmoji[task.dish] || "🍽️"} Table ${task.table}: ${task.dish}`);
+    if (task.mode === "eco") rows.push(task.type === "info" ? `Lab: ${task.material} → ${task.product}` : `Process: ${task.choices ? task.choices.join(" / ") : task.word}`);
+    if (task.mode === "labScan") rows.push(`Scan: ${task.material}`);
+    if (task.mode === "material") rows.push(`${task.material} → ${task.product}`);
+    if (task.mode === "setting") rows.push(`Machine: ${task.choices.join(" / ")}`);
+    if (task.mode === "studioPlan") rows.push(task.hint);
+    if (task.mode === "product") rows.push(`${task.fabric} → ${task.answer}`);
+    if (task.mode === "layout") rows.push(`Layout: ${task.choices.join(" / ")}`);
+    if (task.mode === "assembly") rows.push(`Assembly: ${task.choices.join(" / ")}`);
+    if (task.mode === "finish") rows.push(`Finish: ${task.choices.join(" / ")}`);
+    if (task.mode === "delivery") rows.push(`${task.product} → ${task.answer}`);
+    if (task.mode === "route") rows.push(`Fairness check: ${task.choices.join(" / ")}`);
+    if (task.mode === "deliveryPlan") rows.push(task.hint);
+    if (task.mode === "loopSummary") rows.push("Final circular journey");
+    if (task.mode === "sort" || task.mode === "separate") rows.push(`${task.item}: choose the best place`);
+    this.els.queueList.innerHTML = rows.map((r) => `<li><span>${r}</span></li>`).join("");
+  }
+
+  logInfoTask(task) {
+    if (!task || task._logged || task.type !== "info") return;
+    task._logged = true;
+    if (task.mode === "scrapReveal") {
+      this.stats.scrapsCollected.push(...task.scraps);
+      this.stats.currentScrap = task.scraps[0] || "";
+      this.stats.saved += task.scraps.length;
+    }
+    if (task.mode === "labScan") {
+      this.stats.currentScrap = task.material;
+    }
+    if (task.mode === "eco") {
+      this.stats.currentScrap = task.material;
+      this.stats.lastTextile = task.product;
+    }
+    if (task.mode === "loopSummary") {
+      this.stats.achievements.push("Full Cycora journey completed");
+    }
+  }
+
+  renderTaskVisual(task) {
+    if (task.type === "info" && task.mode === "recipe") {
+      this.recipePath.innerHTML = task.steps
+        .map((s) => `<span>${this.stationIcon(s)} ${this.stationName(s)}</span>`)
+        .join("<b>→</b>");
+      this.miniStage.innerHTML = `<div class="big-card"><span>🗺️</span><strong>${task.product} path</strong><p>${task.hint}</p></div>`;
       return;
     }
-
-    this.wasteChoice.clear();
-
-    const orderPrompt = this.findOrderTakingPrompt();
-    if (orderPrompt) {
-      this.applyCustomerPrompt(orderPrompt);
+    if (task.type === "info" && task.mode === "customerPeek") {
+      task.customers.forEach((c) => this.renderCustomer(c.table, c.dish));
+      this.recipePath.innerHTML = task.customers
+        .map((c) => `<span>${c.name}: ${c.dish} · ${c.request} · ${c.patience}%</span>`)
+        .join("");
+      this.miniStage.innerHTML = `
+        <div class="decision-grid">
+          ${task.customers
+            .map(
+              (c) => `<div class="decision-card">
+                <b>${c.name}</b><span>${this.cfg.dishEmoji[c.dish] || "🍽️"} ${c.dish}</span>
+                <small>${c.request}</small><i><em style="width:${c.patience}%"></em></i>
+                ${c.scrap ? `<small>${c.scrap}</small>` : ""}
+              </div>`
+            )
+            .join("")}
+        </div>`;
       return;
     }
-
-    const prep = this.findPrepPrompt();
-    if (prep) {
-      this.applyStationPrompt(prep);
+    if (task.type === "info" && task.mode === "scrapReveal") {
+      this.recipePath.innerHTML = task.scraps.map((s) => `<span>${this.materialIcon(s)} ${s}</span>`).join("<b>→</b>");
+      this.miniStage.innerHTML = `
+        <div class="big-card material-reveal-card">
+          <span>${this.materialIcon(task.scraps[0])}</span>
+          <strong>${task.title}</strong>
+          <p>${task.hint}</p>
+          <div class="choice-row-mini">${task.scraps.map((s) => `<span>${s}</span>`).join("")}</div>
+        </div>`;
       return;
     }
-
-    const serve = this.findServePrompt();
-    if (serve) {
-      this.applyServePrompt(serve);
+    if (task.type === "info" && task.mode === "labScan") {
+      this.miniStage.innerHTML = this.renderScannerCard(task);
       return;
     }
-
-    this.activePrompt = null;
-    this._typingGraceUntil = null;
-    this.typing.setTarget("", "Hang tight for the next guest…");
-    this.els.typingLabel.textContent = "Waiting";
-    this.setChefPose("idle");
-  }
-
-  findOrderTakingPrompt() {
-    const candidates = this.customers.filter((c) => c.state === "want_order");
-    if (candidates.length === 0) return null;
-    candidates.sort((a, b) => a.patience - b.patience);
-    return { customer: candidates[0] };
-  }
-
-  findPrepPrompt() {
-    const activeOrders = this.orders.filter((o) => !o.cancelled && !o.done);
-    const needs = [];
-    for (const o of activeOrders) {
-      const steps = this.cfg.recipeSteps[o.dish];
-      const idx = o.stepIndex;
-      if (idx >= steps.length) continue;
-      const station = steps[idx];
-      if (station === "serve") continue;
-      const cust = this.customers.find((c) => c.id === o.customerId);
-      const urgency = cust ? cust.patience : 0;
-      needs.push({ order: o, station, urgency });
+    if (task.type === "info" && task.mode === "eco") {
+      this.recipePath.innerHTML = task.steps.map((s) => `<span>${s}</span>`).join("<b>→</b>");
+      this.miniStage.innerHTML = this.renderEcoLine(task, "start");
+      return;
     }
-    if (needs.length === 0) return null;
-    needs.sort((a, b) => a.urgency - b.urgency);
-    return needs[0];
-  }
-
-  findServePrompt() {
-    const activeOrders = this.orders.filter((o) => !o.cancelled && !o.done);
-    for (const o of activeOrders) {
-      const steps = this.cfg.recipeSteps[o.dish];
-      if (o.stepIndex < steps.length && steps[o.stepIndex] === "serve") {
-        const cust = this.customers.find((c) => c.id === o.customerId);
-        return { order: o, customer: cust };
-      }
+    if (task.type === "info" && task.mode === "studioPlan") {
+      this.miniStage.innerHTML = this.renderStudioCard(task, "plan");
+      return;
     }
-    return null;
-  }
-
-  applyCustomerPrompt({ customer }) {
-    if (!customer.orderPromptWord) {
-      customer.orderPromptWord = window.cycoraPick(this.cfg.wordPools.order);
+    if (task.type === "info" && task.mode === "deliveryPlan") {
+      this.miniStage.innerHTML = this.renderDeliveryLine(task, "plan");
+      return;
     }
-    const word = customer.orderPromptWord;
-    this.activePrompt = { kind: "order", customer, word };
-    this.els.typingLabel.textContent = "Grab the order";
-    this.highlightCustomer(customer.id);
-    this.setChefPose("at-serve");
-    this.beginTypingGrace();
-    this.typing.setTarget(word, this.graceHint(`Table ${customer.tableIndex + 1}`));
+    if (task.type === "info" && task.mode === "loopSummary") {
+      this.miniStage.innerHTML = this.renderLoopJourney();
+      return;
+    }
+    if (task.mode === "customer" && task.type === "choice") {
+      this.miniStage.innerHTML = `<div class="big-card"><span>⏱️</span><strong>Who first?</strong><p>${task.hint}</p><div class="choice-row-mini">${task.choices.map((c) => `<span>${c}</span>`).join("")}</div></div>`;
+      return;
+    }
+    if (task.mode === "memory") {
+      this.miniStage.innerHTML = `<div class="big-card"><span>🧠</span><strong>Remember the order</strong><p>${task.hint}</p><div class="choice-row-mini">${task.choices.map((c) => `<span>${c}</span>`).join("")}</div></div>`;
+      return;
+    }
+    if (task.mode === "customer") {
+      this.renderCustomer(task.table);
+      this.highlightCustomer(task.table);
+      this.setChefPose("serve");
+      this.miniStage.innerHTML = `<div class="big-card"><span>👋</span><strong>Table ${task.table}</strong><p>${task.hint}</p></div>`;
+      return;
+    }
+    if (task.mode === "stationChoice") {
+      this.highlightStation(task.station);
+      this.setChefPose(task.station);
+      this.recipePath.innerHTML = task.choices.map((s) => `<span>${this.stationIcon(s)} ${this.stationName(s)}</span>`).join("");
+      this.miniStage.innerHTML = `<div class="big-card"><span>${this.stationIcon(task.station)}</span><strong>Choose the next station</strong><p>${task.hint}</p></div>`;
+      return;
+    }
+    if (task.mode === "station") {
+      this.highlightStation(task.station);
+      this.setChefPose(task.station);
+      this.miniStage.innerHTML = `<div class="big-card"><span>${this.stationIcon(task.station)}</span><strong>${this.stationName(task.station)}</strong><p>${task.hint}</p></div>`;
+      return;
+    }
+    if (task.mode === "serve") {
+      this.renderCustomer(task.table, task.dish);
+      this.highlightCustomer(task.table);
+      this.highlightStation("serve");
+      this.setChefPose("serve");
+      this.miniStage.innerHTML = `<div class="big-card"><span>${this.cfg.dishEmoji[task.dish] || "🍽️"}</span><strong>${task.dish} → Table ${task.table}</strong><p>${task.hint}</p></div>`;
+      return;
+    }
+    if (task.mode === "sort") {
+      this.els.wasteDock.classList.remove("hidden");
+      this.els.screenGame.classList.add("waste-phase");
+      this.els.leftoverSlot.innerHTML = `<div class="leftover-card leftover-card-recovery"><span class="leftover-icon">${this.itemIcon(task.item)}</span><p class="leftover-meta"><strong>${task.item}</strong><br>${task.hint}</p></div>`;
+      this.els.wasteHint.textContent = "Look at the condition before choosing a route.";
+      this.highlightBins(task.choices, false);
+      this.miniStage.innerHTML = `<div class="big-card sort-card"><span>${this.itemIcon(task.item)}</span><strong>${task.item}</strong><p>${task.hint}</p><div class="choice-row-mini choice-row-plain"><span>check condition</span><span>choose route</span><span>trash last</span></div></div>`;
+      return;
+    }
+    if (task.mode === "separate") {
+      this.els.screenGame.classList.add("waste-phase");
+      this.miniStage.innerHTML = `
+        <div class="big-card sort-card mixed-card">
+          <span>🥤</span>
+          <strong>${task.item}</strong>
+          <p>${task.hint}</p>
+          <div class="mixed-parts">
+            <span>liquid</span><span>lid</span><span>cup</span>
+          </div>
+          <div class="choice-row-mini">${task.choices.map((c) => `<span>${c}</span>`).join("")}</div>
+        </div>`;
+      return;
+    }
+    if (task.mode === "material") {
+      this.miniStage.innerHTML = this.renderScannerCard(task);
+      return;
+    }
+    if (task.mode === "setting") {
+      this.miniStage.innerHTML = this.renderEcoLine(task, "setting");
+      return;
+    }
+    if (task.mode === "eco") {
+      this.setChefPose("plate");
+      const step = task.word || task.answer;
+      this.miniStage.innerHTML = this.renderEcoLine(task, step);
+      return;
+    }
+    if (task.mode === "product" || task.mode === "layout" || task.mode === "assembly" || task.mode === "finish") {
+      this.miniStage.innerHTML = this.renderStudioCard(task, task.mode);
+      return;
+    }
+    if (task.mode === "delivery" || task.mode === "route") {
+      this.miniStage.innerHTML = this.renderDeliveryLine(task, task.answer);
+    }
   }
 
-  applyStationPrompt({ order, station }) {
-    const { word } = this.getOrAssignStepWord(order);
-    this.activePrompt = { kind: "prep", order, station, word };
-    const stationLabels = {
-      fridge: "Fridge",
-      pantry: "Pantry",
-      chop: "Chopping block",
-      stove: "Stove",
-      sink: "Sink",
-      plate: "Plating counter",
-    };
-    this.els.typingLabel.textContent = `Line — ${stationLabels[station] || station}`;
-    this.highlightStation(station);
-    this.setChefPose(`at-${station}`);
-    const dish =
-      this.cfg.dishLabels && this.cfg.dishLabels[order.dish]
-        ? this.cfg.dishLabels[order.dish]
-        : order.dish;
-    this.beginTypingGrace();
-    this.typing.setTarget(word, this.graceHint(`${dish} · step ${order.stepIndex + 1}`));
-    const anchor = document.getElementById(`prompt-${station}`);
-    if (anchor) anchor.innerHTML = `<span class="prompt-chip">${word}</span>`;
+  recipeIntro(name, steps, note = "") {
+    const path = steps.map((s) => this.stationName(s)).join(" → ");
+    return { type: "info", mode: "recipe", hint: note ? `${name}: ${path}. ${note}` : `${name}: ${path}`, steps, product: name, duration: 1300 };
   }
 
-  applyServePrompt({ order, customer }) {
-    const { word } = this.getOrAssignStepWord(order);
-    this.activePrompt = { kind: "serve", order, customer, word };
-    this.els.typingLabel.textContent = "Bring it out";
-    this.highlightStation("serve");
-    if (customer) this.highlightCustomer(customer.id);
-    this.setChefPose("at-serve");
-    this.beginTypingGrace();
-    this.typing.setTarget(
-      word,
-      this.graceHint(`Table ${customer ? customer.tableIndex + 1 : "?"}`),
-    );
-    const anchor = document.getElementById("prompt-serve");
-    if (anchor) anchor.innerHTML = `<span class="prompt-chip">${word}</span>`;
+  renderScannerCard(task) {
+    const material = task.material || "scrap";
+    const properties = task.properties || this.materialProperties(material);
+    const choices = task.choices ? `<div class="recipient-row-mini">${task.choices.map((c) => `<span>${c}</span>`).join("")}</div>` : "";
+    return `
+      <div class="scanner-card">
+        <div class="scanner-head"><span>${this.materialIcon(material)}</span><strong>Material scanner</strong><em>${material}</em></div>
+        <div class="scanner-window">
+          <div class="scanner-beam"></div>
+          <div class="scanner-scrap">${this.materialIcon(material)}</div>
+          <div class="property-stack">
+            ${properties.map((p) => `<span>${p}</span>`).join("")}
+          </div>
+        </div>
+        <p>${task.hint || "Look for hidden textile potential."}</p>
+        ${choices}
+      </div>`;
+  }
+
+  renderStudioCard(task, active) {
+    const product = task.answer || task.product || "product";
+    const fabric = task.fabric || this.stats.lastTextile || "fabric";
+    const choices = task.choices ? `<div class="recipient-row-mini">${task.choices.map((c) => `<span>${c}</span>`).join("")}</div>` : "";
+    const steps = ["product", "layout", "assembly", "finish"];
+    return `
+      <div class="studio-board">
+        <div class="factory-head"><span>${this.productIcon(product)}</span><strong>Product Studio</strong><em>Waste ${Math.max(0, 100 - this.stats.saved * 6)}%</em></div>
+        <div class="studio-table">
+          <div class="fabric-swatch"><span>${this.fabricIcon(fabric)}</span><b>${fabric}</b></div>
+          <div class="pattern-grid">
+            ${steps.map((s) => `<span class="${s === active ? "active" : ""}">${this.studioIcon(s)} ${s}</span>`).join("")}
+          </div>
+          <div class="product-preview"><span>${this.productIcon(product)}</span><b>${product}</b><small>${task.impact || "useful textile product"}</small></div>
+        </div>
+        <p>${task.hint || "Choose a product that fits the fabric."}</p>
+        ${choices}
+      </div>`;
+  }
+
+  renderLoopJourney() {
+    const served = this.stats.recipesCompleted[0] || "food served";
+    const scrap = this.stats.scrapsCollected[0] || "scraps collected";
+    const material = this.stats.materialsDiscovered[0] || "material discovered";
+    const textile = this.stats.lastTextile || "textile created";
+    const product = this.stats.lastProduct || "product made";
+    const impact = this.stats.communityImpacts[0] || "community support";
+    return `
+      <div class="full-loop-card journey-card">
+        <strong>Food-to-fabric journey</strong>
+        <div class="loop-strip">
+          <span>${served}</span><b>→</b><span>${scrap}</span><b>→</b><span>${material}</span><b>→</b><span>${textile}</span><b>→</b><span>${product}</span><b>→</b><span>Eco Maker</span><b>→</b><span>${impact}</span>
+        </div>
+        <p>Waste avoided: ${this.stats.saved}. People helped: ${this.stats.helped}.</p>
+      </div>`;
+  }
+
+  renderEcoLine(task, activeStep) {
+    const stationList = ["collect", "wash", "peel", "extract", "spin", "weave", "dye", "dry", "grind", "mix", "print", "press", "stitch", "pack"];
+    const steps = task.steps || stationList;
+    const activeKey = stationList.includes(activeStep) ? activeStep : "collect";
+    const activeIndex = Math.max(0, stationList.indexOf(activeKey));
+    const progress = Math.max(5, Math.min(92, (activeIndex / (stationList.length - 1)) * 100));
+    const product = task.product || "textile";
+    const material = task.material || "rescued scraps";
+    const maker = activeStep === "pack" ? this.ecoMaker(product) : `<div class="eco-maker"><img class="maker-body-img" src="eco-lab-kitchen-to-closet/assets/Eco-Maker.png" alt="Eco Maker" /><small>Eco Maker</small></div>`;
+    const choices = task.choices ? `<div class="recipient-row-mini">${task.choices.map((c) => `<span>${c}</span>`).join("")}</div>` : "";
+    return `
+      <div class="eco-lab-board">
+        <div class="factory-head"><span>${this.materialIcon(material)}</span><strong>Fabric workshop</strong><em>Quality ${this.stats.qualityScore}%</em></div>
+        <div class="production-line fabric-process-line" style="--pod-left:${progress}%; --station-count:${stationList.length}">
+          <div class="belt-track"></div>
+          <div class="material-pod">${this.materialIcon(material)}</div>
+          ${stationList
+            .map(
+              (step) => `<div class="machine-node ${step === activeKey ? "active" : ""} ${steps.includes(step) ? "needed" : ""}">
+                <span>${this.machineIcon(step)}</span><b>${step}</b>
+              </div>`
+            )
+            .join("")}
+        </div>
+        <div class="lab-floor">
+          <div class="processing-tank"><span>${this.machineIcon(activeStep)}</span><b>${activeStep === "setting" ? "settings" : activeStep === "match" ? "ingredient" : activeStep}</b><small>${task.hint || "Move the material along the line."}</small></div>
+          ${maker}
+          <div class="product-rack"><span>${this.productIcon(product)}</span><b>${product}</b><small>product rack</small></div>
+        </div>
+        ${choices}
+      </div>`;
+  }
+
+  renderDeliveryLine(task, activeStop) {
+    const stops = ["rack", "shelter", "market", "winter", "restaurant"];
+    const activeIndex = Math.max(0, stops.indexOf(activeStop));
+    const progress = Math.max(8, Math.min(92, (activeIndex / (stops.length - 1)) * 100));
+    const product = task.product || "products";
+    const choices = task.choices || ["shelter", "market", "winter"];
+    return `
+      <div class="eco-lab-board delivery-board">
+        <div class="factory-head"><span>📦</span><strong>Community delivery line</strong><em>Fairness ${this.stats.fairnessScore}%</em></div>
+        <div class="production-line delivery-line" style="--pod-left:${progress}%">
+          <div class="belt-track"></div>
+          <div class="material-pod">${this.productIcon(product)}</div>
+          ${stops
+            .map(
+              (stop) => `<div class="machine-node ${stop === activeStop ? "active" : ""} needed">
+                <span>${this.deliveryIcon(stop)}</span><b>${stop}</b>
+              </div>`
+            )
+            .join("")}
+        </div>
+        <div class="lab-floor">
+          <div class="processing-tank"><span>${this.productIcon(product)}</span><b>${product}</b><small>${task.hint}</small></div>
+          ${this.ecoMaker(product === "products" ? "tote" : product)}
+          <div class="product-rack"><span>${this.deliveryIcon(activeStop)}</span><b>${activeStop === "plan" ? "needs" : activeStop}</b><small>community stop</small></div>
+        </div>
+        <div class="recipient-row-mini">${choices.map((c) => `<span>${c}</span>`).join("")}</div>
+      </div>`;
+  }
+
+  ecoMaker(product) {
+    const icon = this.productIcon(product);
+    return `
+      <div class="eco-maker eco-maker-finished eco-maker-${product}">
+        <img class="maker-body-img" src="eco-lab-kitchen-to-closet/assets/Eco-Maker.png" alt="Eco Maker" />
+        <span class="maker-product">${icon}</span>
+        <small>I made this!</small>
+      </div>`;
+  }
+
+  machineIcon(step) {
+    return {
+      collect: "▦",
+      wash: "💧",
+      peel: "◔",
+      sort: "▦",
+      clean: "💧",
+      extract: "⚗",
+      spin: "◎",
+      dye: "◒",
+      weave: "▤",
+      grind: "◌",
+      mix: "◍",
+      print: "▧",
+      press: "▥",
+      stitch: "✂",
+      dry: "☼",
+      pack: "▣",
+      setting: "🎛️",
+      match: "↔",
+      start: "▶",
+    }[step] || "•";
+  }
+
+  deliveryIcon(stop) {
+    return { rack: "▣", shelter: "🏠", market: "👜", winter: "🧣", restaurant: "🍽️", plan: "📋" }[stop] || "📦";
+  }
+
+  stationIcon(station) {
+    return { fridge: "🧊", pantry: "🥫", chop: "🔪", sink: "💧", stove: "🔥", plate: "🍽️", serve: "🙌" }[station] || "⭐";
+  }
+
+  sortIcon(answer) {
+    return { donation: "💛", compost: "🌱", recycle: "♻️", trash: "🗑️" }[answer] || "♻️";
+  }
+
+  itemIcon(item) {
+    const s = item.toLowerCase();
+    if (s.includes("bottle")) return "🥤";
+    if (s.includes("drink") || s.includes("cup") || s.includes("lid")) return "🥤";
+    if (s.includes("cardboard")) return "📦";
+    if (s.includes("bread")) return "🍞";
+    if (s.includes("soup")) return "🥣";
+    if (s.includes("banana")) return "🍌";
+    if (s.includes("orange")) return "🍊";
+    if (s.includes("coffee")) return "☕";
+    if (s.includes("peel") || s.includes("veggie")) return "🥕";
+    if (s.includes("napkin") || s.includes("wrap")) return "🧻";
+    if (s.includes("plate")) return "🍽️";
+    return "❔";
+  }
+
+  materialIcon(material) {
+    if (/orange/.test(material)) return "🍊";
+    if (/lemon|citrus/.test(material)) return "🍋";
+    if (/avocado/.test(material)) return "🥑";
+    if (/banana/.test(material)) return "🍌";
+    if (/corn/.test(material)) return "🌽";
+    if (/coffee/.test(material)) return "☕";
+    return "🌿";
+  }
+
+  productIcon(product) {
+    return { tote: "👜", scarf: "🧣", blanket: "🧺", pouch: "👝", apron: "🥼", fabric: "▣", discovery: "⌕", batch: "▦", kit: "▦", banner: "▰", placemat: "▤", product: "🎁" }[product] || "🎁";
+  }
+
+  fabricIcon(fabric) {
+    const s = String(fabric).toLowerCase();
+    if (s.includes("strong")) return "▤";
+    if (s.includes("soft")) return "◒";
+    if (s.includes("thick")) return "▥";
+    if (s.includes("print")) return "▧";
+    if (s.includes("dyed")) return "◒";
+    return "▣";
+  }
+
+  studioIcon(step) {
+    return { product: "choose", layout: "cut", assembly: "stitch", finish: "tag" }[step] || step;
+  }
+
+  materialProperties(material) {
+    const s = String(material).toLowerCase();
+    if (s.includes("orange")) return ["color potential", "citrus oils", "soft rind"];
+    if (s.includes("lemon")) return ["citrus dye", "bright finish", "plant acids"];
+    if (s.includes("banana")) return ["fiber strength", "long strands", "plant cellulose"];
+    if (s.includes("corn")) return ["woven texture", "flexible strips", "dry strength"];
+    if (s.includes("coffee")) return ["brown pigment", "crumbly texture", "print grit"];
+    if (s.includes("avocado")) return ["pink dye", "tannin", "slow simmer"];
+    return ["hidden value", "material clue", "design potential"];
+  }
+
+  transformationPath(material, product) {
+    if (/orange/.test(material)) return "Orange peels -> citrus dye -> dyed cloth";
+    if (/banana/.test(material)) return "Banana fibers -> thread -> woven textile";
+    if (/corn/.test(material)) return "Corn husks -> woven fiber -> thick textile";
+    if (/coffee/.test(material)) return "Coffee grounds -> pigment -> printed fabric";
+    if (/avocado/.test(material)) return "Avocado pits -> pink dye -> dyed cloth";
+    return `${material} -> material -> ${product}`;
   }
 
   onWordComplete() {
-    const p = this.activePrompt;
-    if (!p) return;
-
-    if (p.kind === "order") {
-      const c = p.customer;
-      c.state = "waiting_food";
-      c.patience = Math.min(c.maxPatience, c.patience + 4);
-      const sp = document.getElementById(`speech-${c.id}`);
-      if (sp) sp.classList.add("hidden");
-      const bubble = document.getElementById(`bubble-${c.id}`);
-      if (bubble) {
-        bubble.textContent = this.cfg.dishEmoji[c.dish];
-        bubble.classList.remove("empty");
-      }
-      const order = {
-        id: this.nextOrderId++,
-        customerId: c.id,
-        dish: c.dish,
-        stepIndex: 0,
-        cancelled: false,
-        done: false,
-      };
-      c.orderId = order.id;
-      this.orders.push(order);
-      this.stats.ordersTaken += 1;
-      this.bumpCombo();
-      this.floatScore(document.getElementById(`customer-${c.tableIndex}`), "Order!", true);
-      this.updateQueueUI();
-      this.updatePrompts();
-      return;
-    }
-
-    if (p.kind === "prep") {
-      const o = p.order;
-      o.stepIndex += 1;
-      this.fxPrep(p.station);
-      this.bumpCombo();
-      this.floatScore(document.getElementById(`station-${p.station}`), "Nice", true);
-      this.updateQueueUI();
-      this.updatePrompts();
-      return;
-    }
-
-    if (p.kind === "serve") {
-      const o = p.order;
-      o.done = true;
-      o.stepIndex += 1;
-      const c = this.customers.find((x) => x.id === o.customerId);
-      if (c) {
-        c.state = "eating";
-        c.patience = c.maxPatience;
-        setTimeout(() => {
-          if (c.state === "eating") {
-            c.state = "gone";
-            const wrap = document.getElementById(`customer-${c.tableIndex}`);
-            if (wrap) wrap.innerHTML = "";
-          }
-        }, 2.8);
-      }
-      this.stats.mealsServed += 1;
-      const profit = this.cfg.rollMealProfit();
-      this.stats.profit += profit + this.stats.combo * this.cfg.impact.comboBonusPerTier;
-      this.stats.impact += this.cfg.impact.meal + this.stats.combo;
-      this.bumpCombo();
-      this.floatScore(this.els.stationServe, `+$${profit}`, true);
-      this.updateQueueUI();
-      this.updatePrompts();
-    }
+    if (this.state !== "playing" || !this.activePrompt) return;
+    this.completeTask(true);
   }
 
-  binIdForTypedSortWord(w) {
-    const def = this.cfg.recoveryChannels.find((b) => b.typeWord === w);
-    return def ? def.id : null;
+  onChoiceComplete(word) {
+    if (this.state !== "playing" || !this.activePrompt) return;
+    const task = this.activePrompt;
+    const ok = word === task.answer;
+    if (!ok) {
+      this.stats.mistakes += 1;
+      if (task.mode === "sort" || task.mode === "separate") {
+        this.stats.wrongSorts += 1;
+        this.stats.recoveryScore = Math.max(0, this.stats.recoveryScore - 12);
+        this.stats.sortExplanations.push(`Try ${task.answer}: ${task.explanation}`);
+      }
+      if (task.mode === "eco" || task.mode === "setting" || task.mode === "material" || task.mode === "stationChoice" || task.mode === "product" || task.mode === "layout" || task.mode === "assembly" || task.mode === "finish") {
+        this.stats.qualityScore = Math.max(0, this.stats.qualityScore - 8);
+      }
+      if (task.mode === "delivery" || task.mode === "route") this.stats.fairnessScore = Math.max(0, this.stats.fairnessScore - 10);
+      this.floatScore(this.miniStage, task.explanation || "Try another route", false);
+      this.showTask();
+      return;
+    }
+    this.completeTask(true);
   }
 
-  onWasteTyped(typeWord) {
-    if (this.state !== "waste") return;
-    const cur = this.leftovers[this.currentLeftoverIndex];
-    if (!cur) return;
-
-    const chosen = this.binIdForTypedSortWord(typeWord);
-    const ok = chosen != null && chosen === cur.correctBin;
-    const channel = chosen != null ? this.cfg.recoveryChannels.find((c) => c.id === chosen) : null;
-
-    this.stats.wasteSorted += 1;
-
-    if (ok) {
+  completeTask() {
+    const task = this.activePrompt;
+    this.stats.typed += 1;
+    if (task.countsDecision) this.stats.decisions += 1;
+    if (task.mode === "serve") this.stats.meals += 1;
+    if (task.mode === "sort" || task.mode === "separate") {
       this.stats.correctSorts += 1;
-      const bonus = channel ? channel.impactOnCorrect : 6;
-      this.stats.impact += bonus;
-      if (cur.correctBin === "donation") {
-        this.stats.transformationMaterials += 1;
+      if (task.answer !== "trash") this.stats.saved += 1;
+      this.stats.sortExplanations.push(task.explanation);
+      this.stats.materialsRescued.push(`${task.item} -> ${task.answer}`);
+    }
+    if (task.mode === "stationChoice") {
+      this.stats.qualityScore = Math.min(100, this.stats.qualityScore + 1);
+      if (task.answer === "plate") this.stats.recipesCompleted.push("Recipe path completed");
+    }
+    if (task.mode === "setting") this.stats.qualityScore = Math.min(100, this.stats.qualityScore + 2);
+    if (task.mode === "material") {
+      this.stats.materialsRescued.push(`${task.material} -> ${task.product}`);
+      this.stats.materialsDiscovered.push(`${task.material} -> ${task.product}`);
+    }
+    if (task.mode === "eco") {
+      const step = task.word || task.answer;
+      if (step === "dry" || step === "weave" || step === "print" || step === "press" || step === "pack") {
+        this.stats.lastTextile = task.product;
+        if (!this.stats.textilesCreated.includes(task.product)) this.stats.textilesCreated.push(task.product);
       }
-      this.bumpCombo();
-      const msg = channel ? channel.feedbackCorrect : "Nice — sorted";
-      const celebrate = chosen === "donation";
-      this.floatScore(this.els.wasteDock, msg, true, celebrate);
-    } else {
-      this.stats.wrongSorts += 1;
-      this.stats.impact += this.cfg.impact.sortWrong;
-      this.stats.combo = 0;
-      this.refreshHUD();
-      this.floatScore(this.els.wasteDock, "Wrong bin", false, false);
     }
-
-    this.currentLeftoverIndex += 1;
-    this.updateWasteUI();
-    this.stationPulse("bin");
-    if (this.currentLeftoverIndex >= this.leftovers.length) {
-      this.endWastePhase();
-    } else {
-      this._promptSig = null;
-      this.updatePrompts();
+    if (task.mode === "eco" && (task.word === "pack" || task.answer === "pack")) {
+      this.stats.saved += 1;
+      const path = this.transformationPath(task.material, task.product);
+      this.stats.achievements.push(path);
     }
+    if (task.mode === "product") {
+      this.stats.products += 1;
+      this.stats.saved += 1;
+      this.stats.lastProduct = task.answer;
+      this.stats.productsMade.push(`${this.productIcon(task.answer)} ${task.fabric} -> ${task.answer}`);
+      if (task.impact) this.stats.communityImpacts.push(task.impact);
+    }
+    if (task.mode === "layout") this.stats.saved += 1;
+    if (task.mode === "assembly" || task.mode === "finish") {
+      this.stats.qualityScore = Math.min(100, this.stats.qualityScore + 2);
+    }
+    if (task.mode === "delivery") {
+      this.stats.helped += task.people || 1;
+      this.stats.lastProduct = task.product;
+      this.stats.achievements.push(`${task.product} delivered → ${task.answer}`);
+      this.stats.loopEvents.push(`${task.product} used at ${task.answer}`);
+      this.stats.communityImpacts.push(`${task.product} -> ${task.answer}`);
+    }
+    this.floatScore(this.miniStage, task.explanation || task.feedback || "Nice!", true);
+    this.taskIndex += 1;
+    setTimeout(() => {
+      if (this.state === "playing") this.showTask();
+    }, task.explanation ? 1050 : 260);
   }
 
   onTypingMistake() {
-    this.stats.combo = 0;
-    this.refreshHUD();
+    if (this.state !== "playing") return;
+    this.stats.mistakes += 1;
+    this.floatScore(this.miniStage, "Keep going", false);
   }
 
-  bumpCombo() {
-    this.stats.combo += 1;
-    this.stats.maxCombo = Math.max(this.stats.maxCombo, this.stats.combo);
+  finishLevel(reason) {
+    if (this.state !== "playing") return;
+    this.state = "results";
+    this.stopTimer();
+    this.typing.clear();
+    this.choiceTyping.clear();
+    this.clearPlayUI();
+    const completed = this.taskIndex >= this.tasks.length;
+    let stars = completed ? 2 : 1;
+    const strongSystems = this.stats.recoveryScore >= 80 && this.stats.qualityScore >= 80 && this.stats.fairnessScore >= 80;
+    if (completed && this.stats.mistakes <= 3 && strongSystems && reason !== "time") stars = 3;
+    this.stats.stars = stars;
+    this.stats.circularScore = this.calculateCircularScore();
+    if (completed) {
+      this.saveUnlocked(this.currentLevel.id + 1);
+      this.currentAchievement = this.saveAchievement(this.buildAchievement());
+    }
+    this.showResults(completed);
+  }
+
+  showResults(completed) {
+    this.els.screenGame.classList.add("hidden");
+    this.els.screenResults.classList.remove("hidden");
+    const title = document.getElementById("results-title");
+    if (title) title.textContent = completed ? `${this.currentLevel.title} complete!` : "Good practice run";
+    this.els.resultsStars.textContent = "★".repeat(this.stats.stars) + "☆".repeat(3 - this.stats.stars);
+    const achievementText = this.stats.achievements.length
+      ? this.stats.achievements.slice(-4).join(", ")
+      : "Keep playing to unlock recipe achievements";
+    const productPreview = this.stats.lastProduct
+      ? `${this.productIcon(this.stats.lastProduct)} created by Eco Maker`
+      : "No product this round";
+    const statRows = [
+      ["Sticker", this.stats.sticker],
+      ["Recipes completed", String(this.stats.recipesCompleted.length)],
+      ["Scraps collected", String(this.uniqueList(this.stats.scrapsCollected).length)],
+      ["Materials discovered", String(this.uniqueList(this.stats.materialsDiscovered).length)],
+      ["Textiles created", String(this.uniqueList(this.stats.textilesCreated).length)],
+      ["Decisions made", String(this.stats.decisions)],
+      ["Oops moments", String(this.stats.mistakes)],
+      ["Meals served", String(this.stats.meals)],
+      ["Waste avoided", String(this.stats.saved)],
+      ["Items made", String(this.stats.products)],
+      ["Final product", productPreview],
+      ["People helped", String(this.stats.helped)],
+      ["Circular score", String(this.stats.circularScore)],
+      ["Recovery score", `${this.stats.recoveryScore}%`],
+      ["Quality score", `${this.stats.qualityScore}%`],
+      ["Fairness score", `${this.stats.fairnessScore}%`],
+    ];
+    this.els.resultsStats.innerHTML = statRows.map(([k, v]) => `<li><span>${k}</span><strong>${v}</strong></li>`).join("");
+    this.els.resultsFlavor.textContent = completed
+      ? this.currentLevel.id === 6
+        ? "Full loop complete: food service, scraps, material discovery, textile process, product design, and reuse impact all connected."
+        : "You helped Cycora reveal hidden value: scraps became materials, textiles, products, and community resources."
+      : "No worries. Practice mode and retry are here whenever you want a calmer run.";
+    this.renderResultsExtras(achievementText);
+    const prompt = document.getElementById("results-next-prompt");
+    if (prompt) prompt.textContent = `Reward unlocked: ${this.stats.sticker}`;
+    const next = document.getElementById("btn-next-level");
+    if (next) {
+      next.textContent = this.levelIndex + 1 >= this.levels.length ? "Play final again" : "Next level";
+      next.style.display = completed ? "" : "none";
+    }
+    const boardBtn = document.getElementById("btn-results-leaderboard");
+    if (boardBtn) boardBtn.style.display = completed ? "" : "none";
+  }
+
+  renderResultsExtras(achievementText) {
+    let extras = document.getElementById("results-extra");
+    if (!extras) {
+      extras = document.createElement("div");
+      extras.id = "results-extra";
+      extras.className = "results-extra";
+      this.els.resultsStats.insertAdjacentElement("afterend", extras);
+    }
+    const recipeCards = this.uniqueList(this.stats.productsMade.length ? this.stats.productsMade : this.stats.achievements)
+      .slice(-4)
+      .map((text) => `<div class="result-item-card"><span>${this.resultIconFor(text)}</span><b>${text}</b></div>`)
+      .join("");
+    const materialCards = this.uniqueList(this.stats.materialsRescued)
+      .slice(-4)
+      .map((text) => `<div class="result-item-card small"><span>${this.resultIconFor(text)}</span><b>${text}</b></div>`)
+      .join("");
+    const maker = this.stats.lastProduct ? this.ecoMaker(this.stats.lastProduct) : "";
+    const ceremony = this.currentAchievement ? this.renderAchievementCeremony(this.currentAchievement) : "";
+    const leaderboardPreview = this.currentAchievement ? this.renderLeaderboardPreview() : "";
+    const fullLoop =
+      this.currentLevel && this.currentLevel.id === 6
+        ? `<div class="full-loop-card">
+            <strong>Complete Cycora loop</strong>
+            <div class="loop-strip">
+              <span>food served</span><b>→</b><span>scraps collected</span><b>→</b><span>material discovered</span><b>→</b><span>textile created</span><b>→</b><span>product made</span><b>→</b><span>Eco Maker</span><b>→</b><span>community support</span>
+            </div>
+          </div>`
+        : "";
+    extras.innerHTML = `
+      ${fullLoop}
+      ${ceremony || `<div class="results-product-preview">${maker}</div>`}
+      ${leaderboardPreview}
+      <div class="result-section"><strong>Transformation achievements</strong><div class="result-card-grid">${recipeCards || `<div class="result-item-card"><span>⭐</span><b>${achievementText}</b></div>`}</div></div>
+      <div class="result-section"><strong>Materials discovered</strong><div class="result-card-grid">${materialCards || `<div class="result-item-card small"><span>▣</span><b>Keep discovering material potential</b></div>`}</div></div>
+    `;
+  }
+
+  renderAchievementCeremony(achievement) {
+    return `
+      <div class="achievement-ceremony">
+        <div class="ceremony-product">
+          <span>${this.productIcon(achievement.productId)}</span>
+          <b>${achievement.productName}</b>
+          <small>${achievement.sourceMaterial}</small>
+        </div>
+        <div class="ceremony-arrow">→</div>
+        ${this.ecoMaker(achievement.productId)}
+        <div class="ceremony-arrow ceremony-arrow-community">→</div>
+        <div class="community-recipient">
+          <span>${this.communityIcon(achievement.communityGroup)}</span>
+          <b>${achievement.communityGroup}</b>
+          <small>${achievement.reuseImpact}</small>
+        </div>
+        <div class="ceremony-message">
+          <strong>${achievement.message}</strong>
+          <p>Eco Maker added it to the collection and shared it with someone who can use it.</p>
+          <div class="badge-row">${achievement.badges.map((b) => `<span>${b}</span>`).join("")}</div>
+        </div>
+      </div>`;
+  }
+
+  renderLeaderboardPreview() {
+    const achievements = this.readAchievements().slice(0, 3);
+    if (!achievements.length) return "";
+    return `
+      <div class="leaderboard-preview">
+        <strong>Achievement board</strong>
+        ${achievements
+          .map(
+            (a, i) => `<div class="leaderboard-preview-row">
+              <span>#${i + 1}</span><b>${a.productName}</b><em>${a.circularScore} pts</em>
+            </div>`
+          )
+          .join("")}
+      </div>`;
+  }
+
+  calculateCircularScore() {
+    const service = this.stats.meals * 18 + Math.max(0, 40 - this.stats.mistakes * 2);
+    const recipe = this.stats.recipesCompleted.length * 12 + this.stats.decisions * 4;
+    const discovery = this.uniqueList(this.stats.materialsDiscovered).length * 24;
+    const process = Math.round(this.stats.qualityScore * 1.5);
+    const product = this.stats.products * 55 + this.stats.fairnessScore;
+    const impact = this.stats.saved * 18 + this.stats.helped * 12;
+    const mistakePenalty = this.stats.mistakes * 10;
+    return Math.max(0, service + recipe + discovery + process + product + impact - mistakePenalty);
+  }
+
+  buildAchievement() {
+    const productId = this.inferProductId();
+    const productName = this.productDisplayName(productId);
+    const sourceMaterial = this.inferSourceMaterial();
+    const transformationPath = this.inferTransformationPath(sourceMaterial, productId);
+    const impact = this.inferImpact(productId);
+    const badges = this.badgesForAchievement(productId);
+    const sessionLabel = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return {
+      id: `cycora-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      sessionLabel,
+      levelId: this.currentLevel.id,
+      levelTitle: this.currentLevel.title,
+      productId,
+      productName,
+      sourceMaterial,
+      transformationPath,
+      qualityRating: this.stats.stars,
+      wasteAvoided: this.stats.saved,
+      peopleHelped: this.stats.helped,
+      reuseImpact: impact,
+      communityGroup: this.inferCommunityGroup(productId),
+      circularScore: this.stats.circularScore,
+      mistakes: this.stats.mistakes,
+      badges,
+      message: this.ecoMakerMessage(productId, sourceMaterial),
+    };
+  }
+
+  readAchievements() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem("cycora_achievement_board") || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  saveAchievement(achievement) {
+    const achievements = this.readAchievements();
+    achievements.push(achievement);
+    achievements.sort((a, b) => (b.circularScore || 0) - (a.circularScore || 0));
+    localStorage.setItem("cycora_achievement_board", JSON.stringify(achievements.slice(0, 30)));
+    return achievement;
+  }
+
+  showLeaderboard() {
+    if (!this.els.leaderboardModal || !this.els.leaderboardBody) return;
+    if (this.state === "playing" && !this.practiceMode && !this.boardPausedTimer) {
+      this.stopTimer();
+      this.boardPausedTimer = true;
+    }
+    this.els.leaderboardBody.innerHTML = this.renderLeaderboardBoard();
+    this.els.leaderboardModal.classList.remove("hidden");
+  }
+
+  hideLeaderboard() {
+    this.els.leaderboardModal?.classList.add("hidden");
+    if (this.boardPausedTimer && this.state === "playing") {
+      this.boardPausedTimer = false;
+      this.startTimer();
+    }
+  }
+
+  isLeaderboardOpen() {
+    return !!this.els.leaderboardModal && !this.els.leaderboardModal.classList.contains("hidden");
+  }
+
+  renderLeaderboardBoard() {
+    const achievements = this.readAchievements();
+    if (!achievements.length) {
+      return `
+        <div class="empty-board">
+          <span>▣</span>
+          <strong>No products in the collection yet</strong>
+          <p>Finish a level to give Eco Maker your first circular design achievement.</p>
+        </div>`;
+    }
+    return `
+      <div class="leaderboard-table">
+        ${achievements
+          .map(
+            (a, i) => `<article class="leaderboard-row">
+              <div class="rank-pill">#${i + 1}</div>
+              <div class="leader-product"><span>${this.productIcon(a.productId)}</span><b>${this.escapeHTML(a.productName)}</b><small>${this.escapeHTML(a.levelTitle)}</small></div>
+              <div><span class="leader-label">Source</span><strong>${this.escapeHTML(a.sourceMaterial)}</strong></div>
+              <div><span class="leader-label">Quality</span><strong>${"★".repeat(a.qualityRating || 0)}${"☆".repeat(3 - (a.qualityRating || 0))}</strong></div>
+              <div><span class="leader-label">Waste avoided</span><strong>${a.wasteAvoided || 0}</strong></div>
+              <div><span class="leader-label">Community</span><strong>${this.escapeHTML(a.communityGroup || "Community member")}</strong></div>
+              <div><span class="leader-label">Score</span><strong>${a.circularScore || 0}</strong></div>
+              <div class="leader-badges">${(a.badges || []).map((b) => `<span>${this.escapeHTML(b)}</span>`).join("")}</div>
+            </article>`
+          )
+          .join("")}
+      </div>`;
+  }
+
+  inferProductId() {
+    if (this.stats.lastProduct) return this.stats.lastProduct;
+    if (this.currentLevel.id === 4) return "fabric";
+    if (this.currentLevel.id === 3) return "discovery";
+    if (this.currentLevel.id === 2) return "batch";
+    return "kit";
+  }
+
+  productDisplayName(productId) {
+    const source = this.inferSourceMaterial().toLowerCase();
+    if (productId === "tote" && source.includes("orange")) return "Citrus-Dyed Tote";
+    if (productId === "apron" && source.includes("orange")) return "Citrus-Dyed Apron";
+    if (productId === "scarf") return "Soft Dyed Scarf";
+    if (productId === "pouch") return "Printed Lunch Pouch";
+    if (productId === "fabric") return this.titleCase(this.stats.lastTextile || "Finished Fabric");
+    if (productId === "discovery") return "Material Discovery Card";
+    if (productId === "batch") return "Recipe Scrap Batch";
+    if (productId === "kit") return "Cafe Scrap Starter Kit";
+    return this.titleCase(productId);
+  }
+
+  inferSourceMaterial() {
+    const discovered = this.stats.materialsDiscovered[0] || "";
+    if (discovered.includes("->")) return discovered.split("->")[0].trim();
+    if (this.stats.currentScrap) return this.stats.currentScrap;
+    if (this.stats.scrapsCollected.length) return this.uniqueList(this.stats.scrapsCollected).slice(0, 2).join(" + ");
+    return "food scraps";
+  }
+
+  inferTransformationPath(source, productId) {
+    if (this.currentLevel.id === 6) return `${source} -> extract color -> dye fabric -> stitch ${productId}`;
+    if (productId === "tote") return `${source} -> choose strong fabric -> cut pattern -> stitch tote`;
+    if (productId === "scarf") return `${source} -> dye cloth -> cut strip -> hem scarf`;
+    if (productId === "pouch") return `${source} -> coffee pigment -> print fabric -> stitch pouch`;
+    if (this.stats.textilesCreated.length) return `${source} -> ${this.stats.textilesCreated.slice(-1)[0]}`;
+    if (this.stats.materialsDiscovered.length) return this.stats.materialsDiscovered.slice(-1)[0];
+    return `${source} -> useful material`;
+  }
+
+  inferImpact(productId) {
+    const impact = this.stats.communityImpacts.slice(-1)[0];
+    if (impact) return impact;
+    if (productId === "tote") return "Reusable market bag shared for free";
+    if (productId === "apron") return "Useful apron shared through Eco Maker";
+    if (productId === "scarf") return "Warm scarf shared with someone who needs it";
+    if (productId === "pouch") return "Lunch pouch shared with a student or food bank visitor";
+    if (productId === "fabric") return "Textile material ready for community product design";
+    return "Food waste became something useful for the community";
+  }
+
+  inferCommunityGroup(productId) {
+    const impact = this.stats.communityImpacts.slice(-1)[0] || "";
+    if (/shelter/.test(impact)) return "Shelter visitor";
+    if (/market|food/.test(impact)) return "Food bank visitor";
+    if (/winter|scarf/.test(impact)) return "Newcomer family";
+    if (/restaurant|apron/.test(impact)) return "Community cafe worker";
+    if (productId === "tote") return "Low-income family";
+    if (productId === "scarf" || productId === "blanket") return "Shelter visitor";
+    if (productId === "pouch") return "Student";
+    if (productId === "apron") return "Community kitchen helper";
+    if (productId === "fabric") return "Local sewing group";
+    return "Community member";
+  }
+
+  communityIcon(group) {
+    const s = String(group || "").toLowerCase();
+    if (s.includes("shelter")) return "🏠";
+    if (s.includes("student")) return "🎒";
+    if (s.includes("newcomer")) return "🤝";
+    if (s.includes("senior")) return "🧓";
+    if (s.includes("food")) return "🥫";
+    if (s.includes("family")) return "👪";
+    if (s.includes("kitchen") || s.includes("cafe")) return "🍽️";
+    return "💛";
+  }
+
+  badgesForAchievement(productId) {
+    const badges = ["Waste Transformer"];
+    if (this.stats.materialsDiscovered.length) badges.push("Fiber Finder");
+    if (/tote|apron|pouch|scarf|blanket/.test(productId)) badges.push("Product Maker");
+    if (this.stats.helped > 0) badges.push("Community Helper");
+    if (this.stats.qualityScore >= 90) badges.push("Eco Maker's Choice");
+    if (this.stats.saved >= 4) badges.push("Zero Waste Hero");
+    if (this.currentLevel.id === 6) badges.push("Circular Champion");
+    if (String(this.inferSourceMaterial()).match(/orange|lemon|avocado/)) badges.push("Dye Designer");
+    return this.uniqueList(badges).slice(0, 4);
+  }
+
+  ecoMakerMessage(productId, source) {
+    if (productId === "fabric") return `You turned ${source} into fabric for the community!`;
+    if (productId === "discovery") return `You found hidden value in ${source}!`;
+    if (productId === "batch" || productId === "kit") return "Food waste became something useful for someone else.";
+    return `You made a ${this.productDisplayName(productId)} and helped ${this.inferCommunityGroup(productId).toLowerCase()}!`;
+  }
+
+  titleCase(value) {
+    return String(value || "")
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (m) => m.toUpperCase());
+  }
+
+  escapeHTML(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  uniqueList(items) {
+    return [...new Set((items || []).filter(Boolean))];
+  }
+
+  resultIconFor(text) {
+    const s = String(text).toLowerCase();
+    if (s.includes("orange")) return "🍊";
+    if (s.includes("lemon") || s.includes("citrus")) return "🍋";
+    if (s.includes("avocado")) return "🥑";
+    if (s.includes("banana")) return "🍌";
+    if (s.includes("corn")) return "🌽";
+    if (s.includes("coffee")) return "☕";
+    if (s.includes("tote")) return "👜";
+    if (s.includes("scarf")) return "🧣";
+    if (s.includes("blanket")) return "🧺";
+    if (s.includes("pouch")) return "👝";
+    if (s.includes("apron")) return "🥼";
+    if (s.includes("donation")) return "💛";
+    if (s.includes("compost")) return "🌱";
+    if (s.includes("recycle")) return "♻️";
+    return "⭐";
   }
 
   handleTypingKey(e) {
-    if (this.state === "dialogue" || this.state === "dialogue_waste" || this.state === "dialogue_post") {
-      return;
-    }
-    if (this.state === "waste") {
-      this.wasteChoice.handleKeydown(e);
-      return;
-    }
-    this.typing.handleKeydown(e);
+    if (this.isLeaderboardOpen()) return;
+    if (this.state !== "playing") return;
+    if (this.activePrompt && this.activePrompt.type === "choice") this.choiceTyping.handleKeydown(e);
+    else this.typing.handleKeydown(e);
   }
 
-  floatScore(anchor, text, good, celebrate) {
-    if (!anchor) return;
-    const fx = this.els.fxLayer;
-    const r = anchor.getBoundingClientRect();
-    const vr = this.els.viewport.getBoundingClientRect();
-    const el = document.createElement("div");
-    el.className = "float-score";
-    if (celebrate) el.classList.add("float-score-strong");
-    if (!good) el.classList.add("float-score-weak");
-    el.textContent = text;
-    el.style.left = `${r.left - vr.left + r.width / 2}px`;
-    el.style.top = `${r.top - vr.top}px`;
-    el.style.color = good ? "" : "#f88";
-    fx.appendChild(el);
-    setTimeout(() => el.remove(), 1200);
+  onSpace() {
+    if (this.state === "map" || this.state === "results") return;
   }
 
-  highlightCustomer(cid) {
-    const el = document.querySelector(`[data-cid="${cid}"]`);
-    if (el) el.style.filter = "drop-shadow(0 0 8px rgba(232,168,56,0.9))";
+  restartToMenu() {
+    this.showLevelMap();
   }
 
-  highlightStation(station) {
-    const map = {
-      fridge: this.els.stationFridge,
-      pantry: this.els.stationPantry,
-      chop: this.els.stationChop,
-      stove: this.els.stationStove,
-      sink: this.els.stationSink,
-      plate: this.els.stationPlate,
-      serve: this.els.stationServe,
-    };
-    const el = map[station];
-    if (el) el.classList.add("active-target");
-  }
-
-  highlightBins() {
-    this.cfg.recoveryChannels.forEach((b) => {
-      const binEl = document.getElementById(`bin-${b.id}`);
-      if (binEl) binEl.classList.add("active-target");
-      const pa = document.getElementById(`prompt-${b.id}`);
-      if (pa) {
-        pa.innerHTML = `<span class="prompt-chip">${b.typeWord}</span><span class="prompt-chip-sub">${b.roleShort}</span>`;
-      }
-    });
+  clearPlayUI(clearStage = true) {
+    this.clearStationHighlights();
+    this.clearPromptAnchors();
+    this.els.wasteDock.classList.add("hidden");
+    this.els.screenGame.classList.remove("waste-phase");
+    this.els.screenGame.classList.remove("eco-lab-phase");
+    this.els.queueList.innerHTML = "";
+    if (clearStage && this.miniStage) this.miniStage.innerHTML = "";
+    if (this.recipePath) this.recipePath.innerHTML = "";
+    this.typing.clear();
+    this.choiceTyping.clear();
   }
 
   clearStationHighlights() {
@@ -1032,83 +1606,74 @@ class CycoraGame {
     });
   }
 
-  setChefPose(pose) {
+  highlightCustomer(table) {
+    const el = document.querySelector(`[data-mini-table="${table}"]`);
+    if (el) el.style.filter = "drop-shadow(0 0 10px rgba(232,168,56,0.95))";
+  }
+
+  highlightStation(station) {
+    const map = {
+      fridge: this.els.stationFridge,
+      pantry: this.els.stationPantry,
+      chop: this.els.stationChop,
+      stove: this.els.stationStove,
+      sink: this.els.stationSink,
+      plate: this.els.stationPlate,
+      serve: this.els.stationServe,
+    };
+    const el = map[station];
+    if (el) {
+      el.classList.add("active-target");
+      const anchor = document.getElementById(`prompt-${station}`);
+      if (anchor && this.activePrompt && this.activePrompt.word) {
+        anchor.innerHTML = `<span class="prompt-chip">${this.activePrompt.word}</span>`;
+      }
+    }
+  }
+
+  highlightBins(choices, showPrompt = true) {
+    choices.forEach((id) => {
+      const bin = document.getElementById(`bin-${id}`);
+      const anchor = document.getElementById(`prompt-${id}`);
+      if (bin) bin.classList.add("active-target");
+      if (anchor && showPrompt) anchor.innerHTML = `<span class="prompt-chip">${id}</span>`;
+    });
+  }
+
+  setChefPose(station) {
     const chef = this.els.chefAvatar;
     chef.className = "chef-avatar";
-    if (pose === "idle") return;
-    const slug = pose.replace(/^at-/, "");
-    chef.classList.add(`at-${slug}`);
-    if (slug === "chop") chef.classList.add("state-chop");
-    if (slug === "stove") chef.classList.add("state-cook");
-    if (slug === "serve") chef.classList.add("state-serve");
-    if (slug === "sink") chef.classList.add("state-sink");
+    if (!station) return;
+    chef.classList.add(`at-${station}`);
+    if (station === "chop") chef.classList.add("state-chop");
+    if (station === "stove") chef.classList.add("state-cook");
+    if (station === "sink") chef.classList.add("state-sink");
   }
 
-  fxPrep(station) {
-    const el = document.getElementById(`station-${station}`);
-    const wrap = el ? el.querySelector(".sprite-fx-wrap") : null;
-    if (station === "stove" && wrap) {
-      wrap.classList.add("fx-steam");
-      setTimeout(() => wrap.classList.remove("fx-steam"), 1400);
-    }
-    if (station === "plate" && wrap) {
-      wrap.classList.add("fx-sparkle");
-      setTimeout(() => wrap.classList.remove("fx-sparkle"), 900);
-    }
-    if (station === "sink" && wrap) {
-      wrap.classList.add("fx-ripple");
-      setTimeout(() => wrap.classList.remove("fx-ripple"), 1000);
-    }
-    if (el) {
-      el.classList.add("flash-success");
-      setTimeout(() => el.classList.remove("flash-success"), 500);
-    }
+  floatScore(anchor, text, good) {
+    if (!anchor) return;
+    const fx = this.els.fxLayer;
+    const r = anchor.getBoundingClientRect();
+    const vr = this.els.viewport.getBoundingClientRect();
+    const el = document.createElement("div");
+    el.className = `float-score ${good ? "" : "float-score-weak"}`;
+    el.textContent = text;
+    el.style.left = `${r.left - vr.left + r.width / 2}px`;
+    el.style.top = `${r.top - vr.top + 10}px`;
+    fx.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
   }
 
-  stationPulse() {
-    /* optional */
-  }
-
-  updateQueueUI() {
-    const ul = this.els.queueList;
-    ul.innerHTML = "";
-    for (const o of this.orders) {
-      if (o.cancelled || o.done) continue;
-      const c = this.customers.find((x) => x.id === o.customerId);
-      const steps = this.cfg.recipeSteps[o.dish];
-      const st = steps[o.stepIndex] || "done";
-      const stepLabels = {
-        fridge: "fridge",
-        pantry: "pantry",
-        chop: "chop",
-        stove: "stove",
-        sink: "sink",
-        plate: "plate",
-        serve: "serve",
-      };
-      const li = document.createElement("li");
-      li.innerHTML = `<span>${this.cfg.dishEmoji[o.dish]}</span><span>T${c ? c.tableIndex + 1 : "?"} · ${stepLabels[st] || st}</span>`;
-      ul.appendChild(li);
-    }
-  }
-
-  refreshHUD() {
-    const t =
-      this.state === "service"
-        ? Math.max(0, this.serviceTimeLeft).toFixed(0)
-        : this.state === "waste"
-          ? Math.max(0, this.wasteTimeLeft).toFixed(0)
-          : "—";
-    this.els.hudTimer.textContent = t + "s";
-    this.els.hudProfit.textContent = `$${this.stats.profit}`;
-    this.els.hudImpact.textContent = String(this.stats.impact);
-    this.els.hudMeals.textContent = String(this.stats.mealsServed);
-    this.els.hudWaste.textContent = String(this.stats.wasteSorted);
-    const redirectLab = document.getElementById("hud-redirect-label");
-    if (redirectLab && this.cfg.recoveryCopy) {
-      redirectLab.textContent = this.cfg.recoveryCopy.hudRedirectLabel;
-    }
-    this.els.hudCombo.textContent = this.stats.combo > 0 ? String(this.stats.combo) : "—";
+  flashPhaseBanner(text) {
+    const layer = this.els.fxLayer;
+    const ov = document.createElement("div");
+    ov.className = "phase-overlay";
+    ov.innerHTML = `<div class="banner">${text}</div>`;
+    layer.appendChild(ov);
+    setTimeout(() => {
+      ov.style.opacity = "0";
+      setTimeout(() => ov.remove(), 350);
+    }, 800);
   }
 }
 
