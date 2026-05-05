@@ -1,5 +1,5 @@
 /**
- * Cycora: Kitchen Chaos — random word pools, circular-economy recovery channels
+ * Cycora: Circular Design Lab — random word pools and material-transformation copy
  */
 function cycoraPick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -12,17 +12,17 @@ function cycoraRandRange(min, max) {
 const CycoraConfig = {
   viewport: { width: 1280, height: 720 },
 
-  /** UI framing — not “municipal bins,” but redirect paths into the Cycora network */
+  /** UI framing for the small supporting recovery dock. The main game centers transformation. */
   recoveryCopy: {
-    dockTitle: "Sort the leftovers",
-    dockSubtitle: "Pick where each scrap should go in Cycora — not just ‘trash’ by default.",
-    phaseBanner: "Leftover sort",
-    hudRedirectLabel: "Sorted",
+    dockTitle: "Collect useful scraps",
+    dockSubtitle: "Choose the material path. Sorting is only a tiny helper action.",
+    phaseBanner: "Material collection",
+    hudRedirectLabel: "Materials",
   },
 
   /**
    * Four recovery channels (order = display left-to-right: transformation-first).
-   * Type words stay: donation, compost, recycle, trash.
+   * Legacy type words stay available for older recovery-dock helpers.
    * correctBin on leftovers uses id.
    */
   recoveryChannels: [
