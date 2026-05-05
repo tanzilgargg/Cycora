@@ -1,4 +1,4 @@
-# Cycora
+## Cycora
 ## Circular Design Lab Browser Game
 
 ### Overview
@@ -11,6 +11,7 @@ The game keeps the warm, kid-friendly Cycora style and simple typing controls, b
 - Use `Backspace` to fix typing.
 - In Practice Mode, the timer is removed.
 - Mistakes give a hint and let the player retry.
+- Enter a player name on the level map so achievements are saved under the right maker.
 
 ### Six Levels
 1. **Restaurant / Cafe**  
@@ -23,10 +24,10 @@ The game keeps the warm, kid-friendly Cycora style and simple typing controls, b
    This replaces generic sorting. Players scan scraps, reveal properties such as pigment, fiber strength, texture, moisture, and dye potential, then match each scrap to its best transformation path.
 
 4. **Fiber & Fabric Workshop**  
-   Players move materials through process chains such as collect -> wash -> extract -> dye -> dry or collect -> peel -> extract -> spin -> weave. Quality changes with correct order and machine settings.
+   Players move materials through an industry-style conveyor. One scrap batch sits on the belt at the active station while animated machines wash, press, spin, dye, weave, dry, grind, mix, or print it. Process chains include collect -> wash -> extract -> dye -> dry or collect -> peel -> extract -> spin -> weave. Quality changes with correct order and machine settings.
 
 5. **Product Studio**  
-   Players choose products that fit the fabric: strong woven cloth becomes a tote, soft dyed cloth becomes a scarf, and printed fabric becomes a pouch. Layout and finishing choices reduce waste and improve usefulness.
+   Players choose products that fit the fabric: strong woven cloth becomes a tote, soft dyed cloth becomes a scarf, thick woven textile becomes a jacket, colorful dyed cloth becomes a shirt, printed fabric becomes a pouch, and sturdy offcuts become a purse. Layout and finishing choices reduce waste and improve usefulness.
 
 6. **Full Cycora Shift**  
    The final level combines the full journey: greet customer -> take order -> prepare recipe -> collect scrap -> discover material potential -> transform into textile -> create product -> send to reuse or community.
@@ -50,6 +51,8 @@ The achievement is saved locally in the browser. Each saved achievement includes
 - waste avoided
 - reuse or community impact
 - play session date label
+- player name
+- exact achievement time
 - circular economy score
 
 ### Achievement Board
@@ -57,6 +60,7 @@ The Achievement Board is a friendly progress wall, not a stressful competition. 
 
 The board displays:
 - rank in the local collection
+- player name and time achieved
 - completed level
 - product created
 - source material
