@@ -4,10 +4,10 @@
 const CycoraDialogue = {
   intro() {
     return [
-      { speaker: "Mentor Rio", text: "Welcome to Cycora Kitchen. Extra food doesn’t just disappear here — we try to send it somewhere useful instead of the dump." },
-      { speaker: "Mentor Rio", text: "Every move has its own word: peek at what’s lit above guests and stations, then type what you see." },
-      { speaker: "Mentor Rio", text: "Serve the rush first. When that window closes, you’ll sort leftovers into four paths — not random trash cans, but where stuff can actually go next." },
-      { speaker: "Mentor Rio", text: "Donation is for food that’s still good for people — it stays in the loop. Hit Space whenever you want to read my tips." },
+      { speaker: "Mentor Rio", text: "Welcome to Cycora. In this cafe, food scraps can become colors, fibers, fabric, products, and community resources." },
+      { speaker: "Mentor Rio", text: "Every move has its own word: peek at what’s lit above guests, stations, scanners, and machines, then type your choice." },
+      { speaker: "Mentor Rio", text: "The big idea is transformation. Serve food, collect scraps, discover material potential, make textiles, then design useful products." },
+      { speaker: "Mentor Rio", text: "Practice Mode removes the timer. Mistakes just point you toward the next better choice." },
     ];
   },
 
@@ -25,8 +25,8 @@ const CycoraDialogue = {
 
   toWaste() {
     return [
-      { speaker: "Mentor Rio", text: "Service is done. Now route each leftover: donation if it can still help people, compost for scraps, recycle for clean packaging, trash only when it’s actually ruined." },
-      { speaker: "Mentor Rio", text: "Getting donation right keeps real value in the neighborhood. Read each card and pick what you think fits." },
+      { speaker: "Mentor Rio", text: "Service is done. Now look closer: peels, grounds, husks, fibers, and pits each have different material powers." },
+      { speaker: "Mentor Rio", text: "Scan the scrap, read the properties, and choose the path that fits." },
     ];
   },
 
@@ -34,13 +34,13 @@ const CycoraDialogue = {
     if (stars >= 3) {
       return {
         speaker: "Mentor Rio",
-        text: "That was a strong shift — you fed people and you didn’t waste the leftovers. The loop’s fuller because of you.",
+        text: "That was a strong shift — you turned scraps into material, material into fabric, and fabric into something useful.",
       };
     }
     if (stars >= 2) {
       return {
         speaker: "Mentor Rio",
-        text: "Not bad. Tighter sorting = more stuff that can be reused or composted. Keep drilling the four bins.",
+        text: "Not bad. Stronger process choices mean better fabric and more useful products.",
       };
     }
     return {
