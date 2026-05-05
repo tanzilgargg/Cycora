@@ -54,37 +54,51 @@
     resultsStars: document.getElementById("results-stars"),
     resultsStats: document.getElementById("results-stats"),
     resultsFlavor: document.getElementById("results-flavor"),
+    leaderboardModal: document.getElementById("leaderboard-modal"),
+    leaderboardBody: document.getElementById("leaderboard-body"),
   };
 
   let game = null;
 
-  function startGame() {
+  function ensureGame() {
+    if (game) return game;
     if (window.TypingPiano) window.TypingPiano.prime();
-    const largePrompts = document.getElementById("opt-large-prompts").checked;
-    const highContrast = document.getElementById("opt-high-contrast").checked;
+    const largePrompts = !!document.getElementById("opt-large-prompts")?.checked;
+    const highContrast = !!document.getElementById("opt-high-contrast")?.checked;
+    const practiceMode = !!document.getElementById("opt-practice-mode")?.checked;
     game = new CycoraGame(els, {
       largePrompts,
       highContrast,
+      practiceMode,
     });
+    return game;
+  }
+
+  function startGame() {
+    const g = ensureGame();
     els.screenMenu.classList.add("hidden");
     els.screenGame.classList.remove("hidden");
     els.screenResults.classList.add("hidden");
     els.dialoguePanel.classList.remove("hidden");
-    game.startIntroDialogue();
+    g.startIntroDialogue();
   }
 
-  document.getElementById("btn-start-game").addEventListener("click", startGame);
+  ensureGame().startIntroDialogue();
+
+  const legacyStart = document.getElementById("btn-start-game");
+  if (legacyStart) legacyStart.addEventListener("click", startGame);
 
   document.getElementById("btn-results-menu").addEventListener("click", () => {
     if (game) game.restartToMenu();
-    els.screenGame.classList.add("hidden");
-    els.screenResults.classList.add("hidden");
-    els.screenMenu.classList.remove("hidden");
-    game = null;
   });
 
   window.addEventListener("keydown", (e) => {
     if (!game) return;
+    if (e.key === "Escape") {
+      game.hideLeaderboard();
+      return;
+    }
+    if (game.isLeaderboardOpen()) return;
     const isSpace = e.key === " " || e.code === "Space";
     if (isSpace) {
       e.preventDefault();
