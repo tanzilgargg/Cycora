@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Families">
-  <circle cx="22" cy="22" r="10" fill="#e8c4a8"/>
-  <rect x="14" y="32" width="16" height="20" rx="4" fill="#6b8f71"/>
-  <circle cx="42" cy="24" r="8" fill="#d4a574"/>
-  <rect x="36" y="34" width="12" height="16" rx="3" fill="#4a7c59"/>
-  <circle cx="32" cy="14" r="6" fill="#f0c8a8"/>
-  <path d="M28 18 L36 18 L34 26 L30 26 Z" fill="#8b6914"/>
-</svg>

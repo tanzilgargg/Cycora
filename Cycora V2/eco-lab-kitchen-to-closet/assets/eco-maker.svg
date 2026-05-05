@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 120" role="img" aria-label="Lab maker">
-  <ellipse cx="48" cy="108" rx="36" ry="10" fill="#000" opacity="0.12"/>
-  <rect x="28" y="52" width="40" height="48" rx="8" fill="#4a7c59" stroke="#2d4a35" stroke-width="2"/>
-  <circle cx="48" cy="36" r="22" fill="#e8c4a8" stroke="#c49a78" stroke-width="2"/>
-  <rect x="38" y="14" width="20" height="12" rx="4" fill="#3d5c45"/>
-  <rect x="22" y="58" width="52" height="8" rx="2" fill="#d4a03c"/>
-  <rect x="30" y="68" width="36" height="6" rx="2" fill="#f5ebe0" opacity="0.9"/>
-</svg>
