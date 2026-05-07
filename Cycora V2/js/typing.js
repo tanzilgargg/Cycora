@@ -120,6 +120,7 @@ class ChoiceTypingManager {
   constructor(options) {
     this.words = [];
     this.buffer = "";
+    this.targetWord = "";
     this.allowBackspace = options.allowBackspace ?? true;
     this.onComplete = options.onComplete ?? (() => {});
     this.onMistake = options.onMistake ?? (() => {});
@@ -127,8 +128,9 @@ class ChoiceTypingManager {
     this.hintEl = options.hintEl ?? null;
   }
 
-  setChoices(words) {
+  setChoices(words, targetWord = "") {
     this.words = (words || []).map((w) => String(w).toLowerCase());
+    this.targetWord = String(targetWord || this.words[0] || "").toLowerCase();
     this.buffer = "";
     this.render();
     if (this.hintEl) {
@@ -139,6 +141,7 @@ class ChoiceTypingManager {
   clear() {
     this.words = [];
     this.buffer = "";
+    this.targetWord = "";
     if (this.el) this.el.innerHTML = "";
     if (this.hintEl) this.hintEl.textContent = "";
   }
@@ -190,6 +193,9 @@ class ChoiceTypingManager {
     const exact = this.words.find((w) => w === this.buffer);
     if (exact) {
       this.buffer = "";
+      this.words = [];
+      this.targetWord = "";
+      this.render();
       this.onComplete(exact);
     }
     return true;
@@ -198,17 +204,25 @@ class ChoiceTypingManager {
   render() {
     if (!this.el) return;
     this.el.innerHTML = "";
-    for (let i = 0; i < this.buffer.length; i += 1) {
+    const target = this.targetWord || this.buffer;
+    for (let i = 0; i < target.length; i += 1) {
       const span = document.createElement("span");
-      span.className = "ch correct";
-      span.textContent = this.buffer[i];
+      span.className = "ch";
+      span.textContent = target[i];
+      if (i < this.buffer.length) {
+        span.classList.add(this.buffer[i] === target[i] ? "correct" : "wrong");
+      } else {
+        span.classList.add("pending");
+      }
       this.el.appendChild(span);
     }
-    const pending = document.createElement("span");
-    pending.className = "ch pending";
-    pending.textContent = "\u00a0";
-    pending.style.opacity = "0.35";
-    this.el.appendChild(pending);
+    if (!target) {
+      const pending = document.createElement("span");
+      pending.className = "ch pending";
+      pending.textContent = "\u00a0";
+      pending.style.opacity = "0.35";
+      this.el.appendChild(pending);
+    }
   }
 }
 
