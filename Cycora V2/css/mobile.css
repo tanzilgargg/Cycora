@@ -201,6 +201,52 @@ button {
   font-weight: 800;
 }
 
+.age-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff8ef;
+}
+
+.age-card legend {
+  padding: 0 4px;
+  color: var(--forest);
+  font-family: var(--display);
+  font-weight: 900;
+}
+
+.age-card label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  border: 2px solid rgba(49, 83, 60, 0.18);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  font-weight: 900;
+}
+
+.age-card input {
+  margin-right: 9px;
+  accent-color: var(--forest);
+}
+
+.age-card small {
+  margin-left: 4px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.age-card label:has(input:checked) {
+  border-color: var(--forest);
+  background: rgba(107, 143, 113, 0.14);
+}
+
 .mode-card,
 .inventory-strip,
 .achievement-row,
